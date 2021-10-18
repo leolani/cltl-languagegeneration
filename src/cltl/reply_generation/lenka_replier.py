@@ -18,8 +18,7 @@ class LenkaReplier(BasicReplier):
         ----------
         """
 
-        self._log = logger.getChild(self.__class__.__name__)
-        self._log.debug("Booted")
+        super(LenkaReplier, self).__init__()
 
     def reply_to_question(self, brain_response):
         say = ''
@@ -51,14 +50,14 @@ class LenkaReplier(BasicReplier):
         for item in response:
 
             # INITIALIZATION
-            subject, predicate, object = _assign_spo(utterance, item)
+            subject, predicate, object = self._assign_spo(utterance, item)
 
-            author = _replace_pronouns(utterance.chat_speaker, author=item['authorlabel']['value'])
-            subject = _replace_pronouns(utterance.chat_speaker, entity_label=subject, role='subject')
-            object = _replace_pronouns(utterance.chat_speaker, entity_label=object, role='object')
+            author = self._replace_pronouns(utterance.chat_speaker, author=item['authorlabel']['value'])
+            subject = self._replace_pronouns(utterance.chat_speaker, entity_label=subject, role='subject')
+            object = self._replace_pronouns(utterance.chat_speaker, entity_label=object, role='object')
 
-            subject = _fix_entity(subject, utterance.chat_speaker)
-            object = _fix_entity(object, utterance.chat_speaker)
+            subject = self._fix_entity(subject, utterance.chat_speaker)
+            object = self._fix_entity(object, utterance.chat_speaker)
 
             # Hash item such that duplicate entries have the same hash
             item_hash = '{}_{}_{}_{}'.format(subject, predicate, object, author)
@@ -78,7 +77,7 @@ class LenkaReplier(BasicReplier):
                 gram_number = subject_entry['number']
 
             # Deal with author
-            say, previous_author = _deal_with_authors(author, previous_author, predicate, previous_predicate, say)
+            say, previous_author = self._deal_with_authors(author, previous_author, predicate, previous_predicate, say)
 
             if predicate.endswith('is'):
 
@@ -158,28 +157,28 @@ class LenkaReplier(BasicReplier):
         say = None
 
         if approach == 'cardinality_conflicts':
-            say = _phrase_cardinality_conflicts(thoughts.complement_conflicts(), utterance)
+            say = self._phrase_cardinality_conflicts(thoughts.complement_conflicts(), utterance)
 
         elif approach == 'negation_conflicts':
-            say = _phrase_negation_conflicts(thoughts.negation_conflicts(), utterance)
+            say = self._phrase_negation_conflicts(thoughts.negation_conflicts(), utterance)
 
         elif approach == 'statement_novelty':
-            say = _phrase_statement_novelty(thoughts.statement_novelties(), utterance)
+            say = self._phrase_statement_novelty(thoughts.statement_novelties(), utterance)
 
         elif approach == 'entity_novelty':
-            say = _phrase_type_novelty(thoughts.entity_novelty(), utterance)
+            say = self._phrase_type_novelty(thoughts.entity_novelty(), utterance)
 
         elif approach == 'subject_gaps':
-            say = _phrase_subject_gaps(thoughts.subject_gaps(), utterance)
+            say = self._phrase_subject_gaps(thoughts.subject_gaps(), utterance)
 
         elif approach == 'object_gaps':
-            say = _phrase_complement_gaps(thoughts.complement_gaps(), utterance)
+            say = self._phrase_complement_gaps(thoughts.complement_gaps(), utterance)
 
         elif approach == 'overlaps':
-            say = _phrase_overlaps(thoughts.overlaps(), utterance)
+            say = self._phrase_overlaps(thoughts.overlaps(), utterance)
 
         if persist and say is None:
-            say = phrase_thoughts(update, proactive, persist)
+            say = self.reply_to_statement(update, proactive, persist)
 
         if say and '-' in say:
             say = say.replace('-', ' ').replace('  ', ' ')
@@ -196,9 +195,9 @@ class LenkaReplier(BasicReplier):
             options = ['%s %s like %s told me' % (predicate, item['value'], item['author']) for item in
                        conflict['objects']]
             options = ' or '.join(options)
-            subject = _replace_pronouns(speaker, author=conflict['objects'][1]['author'],
-                                        entity_label=conflict['subject'],
-                                        role='subject')
+            subject = self._replace_pronouns(speaker, author=conflict['objects'][1]['author'],
+                                             entity_label=conflict['subject'],
+                                             role='subject')
 
             say = say + ' For example, I do not know if %s %s' % (subject, options)
 
@@ -296,13 +295,13 @@ class LenkaReplier(BasicReplier):
         novelty = novelties.subject if entity_role == 'subject' else novelties.complement
 
         if novelty:
-            entity_label = _replace_pronouns(utterance.chat_speaker, entity_label=entity_label, role=entity_role)
+            entity_label = self._replace_pronouns(utterance.chat_speaker, entity_label=entity_label, role=entity_role)
             say = random.choice(NEW_KNOWLEDGE)
             if entity_label != 'you':  # TODO or type person?
                 # Checked
-                say += ' I had never heard about %s before!' % _replace_pronouns(utterance.chat_speaker,
-                                                                                 entity_label=entity_label,
-                                                                                 role='object')
+                say += ' I had never heard about %s before!' % self._replace_pronouns(utterance.chat_speaker,
+                                                                                      entity_label=entity_label,
+                                                                                      role='object')
             else:
                 say += ' I am excited to get to know about %s!' % entity_label
 
@@ -310,9 +309,9 @@ class LenkaReplier(BasicReplier):
             say = random.choice(EXISTING_KNOWLEDGE)
             if entity_label != 'you':
                 # Checked
-                say += ' I have heard about %s before' % _replace_pronouns(utterance.chat_speaker,
-                                                                           entity_label=entity_label,
-                                                                           role='object')
+                say += ' I have heard about %s before' % self._replace_pronouns(utterance.chat_speaker,
+                                                                                entity_label=entity_label,
+                                                                                role='object')
             else:
                 say += ' I love learning more and more about %s!' % entity_label
 
@@ -509,10 +508,10 @@ class LenkaReplier(BasicReplier):
             entity_tokens = entity.split('-')
 
             for word in entity_tokens:
-                new_ent += _replace_pronouns(speaker, entity_label=word, role='pos') + ' '
+                new_ent += self._replace_pronouns(speaker, entity_label=word, role='pos') + ' '
 
         else:
-            new_ent += _replace_pronouns(speaker, entity_label=entity)
+            new_ent += self._replace_pronouns(speaker, entity_label=entity)
 
         entity = new_ent
         return entity
