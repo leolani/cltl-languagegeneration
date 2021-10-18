@@ -127,3 +127,12 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# Mac
+.idea/
+
+# 2to3
+*.bak
+
+# Mac files
+.DS_Store

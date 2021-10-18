@@ -1,4 +1,5 @@
 import logging
+import sys
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -25,7 +26,6 @@ class BasicReplier(object):
         self._log.debug("Booted")
 
     def reply_to_question(self):
-
         raise NotImplementedError()
 
     def reply_to_statement(self):

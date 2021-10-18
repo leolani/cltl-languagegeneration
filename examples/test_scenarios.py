@@ -38,34 +38,36 @@ def test_scenario(statements, questions, gold):
     :param gold: gold standard reply
     :return: number of correct replies
     """
+
+    print(f'\n\n---------------------------------------------------------------')
     correct = 0
     reply = None
 
     chat = Chat("Lenka")
 
     # one or several statements are added to the brain
-    print(f'\n\n---------------------------------------------------------------\nSTATEMENTS')
+    print(f'\nSTATEMENTS\n')
     for statement in statements:
         chat.add_utterance([UtteranceHypothesis(statement, 1.0)])
         chat.last_utterance.analyze()
 
-        print(f"\nUtterance: {chat.last_utterance}")
+        print(f"Utterance: {chat.last_utterance}")
         print(f"Triple:      \t{chat.last_utterance.triple}")
-        print(f"Perspective: \t{chat.last_utterance.perspective}")
+        print(f"Perspective: \t{chat.last_utterance.perspective}\n")
 
     # brain is queried and a reply is generated and compared with golden standard
-    print(f'\n\nQUESTIONS')
+    print(f'\nQUESTIONS\n')
     for question in questions:
         chat.add_utterance([UtteranceHypothesis(question, 1.0)])
         chat.last_utterance.analyze()
 
-        print(f"\nQuestion:   \t{chat.last_utterance}")
+        print(f"Question:   \t{chat.last_utterance}")
         print(f"Triple:            \t{chat.last_utterance.triple}")
         print(f"Response:          \t{reply}")
-        print(f"Expected response: \t{gold.lower().strip()}")
+        print(f"Expected response: \t{gold.lower().strip()}\n")
 
         if reply is None or (reply.lower().strip() != gold.lower().strip()):
-            pass
+            continue
         else:
             correct += 1
 
