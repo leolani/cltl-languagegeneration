@@ -1,6 +1,6 @@
 import random
 
-from cltl.combot.backend.utils.casefolding import casefold_text
+from cltl.combot.backend.utils.casefolding import casefold_text, casefold_capsule
 from cltl.reply_generation.api import BasicReplier
 from cltl.reply_generation.data.sentences import NEW_KNOWLEDGE, EXISTING_KNOWLEDGE, CONFLICTING_KNOWLEDGE, \
     CURIOSITY, HAPPY, TRUST, NO_TRUST
@@ -34,10 +34,11 @@ class LenkaReplier(BasicReplier):
         utterance.casefold(format='natural')
 
         if not response:
-            if utterance.triple.subject.types and utterance.triple.complement.types and utterance.triple.predicate_name:
+            if utterance['triple'].subject.types and utterance['triple']['_complement'].types and \
+                    utterance['triple']['_predicate']['_label']:
                 say += "I know %s usually %s %s, but I do not know this case" % (
-                    random.choice(utterance.triple.subject.types), str(utterance.triple.predicate_name),
-                    random.choice(utterance.triple.complement.types))
+                    random.choice(utterance['triple'].subject.types), str(utterance['triple']['_predicate']['_label']),
+                    random.choice(utterance['triple']['_complement'].types))
                 return say
 
             else:
@@ -52,12 +53,12 @@ class LenkaReplier(BasicReplier):
             # INITIALIZATION
             subject, predicate, object = self._assign_spo(utterance, item)
 
-            author = self._replace_pronouns(utterance.chat_speaker, author=item['authorlabel']['value'])
-            subject = self._replace_pronouns(utterance.chat_speaker, entity_label=subject, role='subject')
-            object = self._replace_pronouns(utterance.chat_speaker, entity_label=object, role='object')
+            author = self._replace_pronouns(utterance['author'], author=item['authorlabel']['value'])
+            subject = self._replace_pronouns(utterance['author'], entity_label=subject, role='subject')
+            object = self._replace_pronouns(utterance['author'], entity_label=object, role='object')
 
-            subject = self._fix_entity(subject, utterance.chat_speaker)
-            object = self._fix_entity(object, utterance.chat_speaker)
+            subject = self._fix_entity(subject, utterance['author'])
+            object = self._fix_entity(object, utterance['author'])
 
             # Hash item such that duplicate entries have the same hash
             item_hash = '{}_{}_{}_{}'.format(subject, predicate, object, author)
@@ -82,11 +83,11 @@ class LenkaReplier(BasicReplier):
             if predicate.endswith('is'):
 
                 say += object + ' is'
-                if utterance.triple.complement_name.lower() == utterance.chat_speaker.lower() or \
-                        utterance.triple.subject_name.lower() == utterance.chat_speaker.lower():
+                if utterance['triple']['_complement']['_label'].lower() == utterance['author'].lower() or \
+                        utterance['triple']['_subject']['_label'].lower() == utterance['author'].lower():
                     say += ' your '
-                elif utterance.triple.complement_name.lower() == 'leolani' or \
-                        utterance.triple.subject_name.lower() == 'leolani':
+                elif utterance['triple']['_complement']['_label'].lower() == 'leolani' or \
+                        utterance['triple']['_subject']['_label'].lower() == 'leolani':
                     say += ' my '
                 say += predicate[:-3]
 
@@ -123,12 +124,12 @@ class LenkaReplier(BasicReplier):
 
         return say.replace('-', ' ').replace('  ', ' ')
 
-    def reply_to_statement(self, update, entity_only=False, proactive=True, persist=False):
+    def reply_to_statement(self, brain_response, entity_only=True, proactive=True, persist=False):
         """
         Phrase a random thought
         Parameters
         ----------
-        update
+        brain_response
         entity_only
         proactive
         persist
@@ -146,39 +147,39 @@ class LenkaReplier(BasicReplier):
             options.extend(['subject_gaps', 'object_gaps', 'overlaps'])
 
         # Casefold and select approach randomly
-        utterance = update['statement']
-        if utterance.triple is None:
+        utterance = brain_response['statement']
+        if utterance['triple'] is None:
             return None
 
-        utterance.casefold(format='natural')
-        thoughts = update['thoughts']
-        thoughts.casefold(format='natural')
+        utterance = casefold_capsule(utterance, format='natural')
+        thoughts = brain_response['thoughts']
+        thoughts = casefold_capsule(thoughts, format='natural')
         approach = random.choice(options)
         say = None
 
         if approach == 'cardinality_conflicts':
-            say = self._phrase_cardinality_conflicts(thoughts.complement_conflicts(), utterance)
+            say = self._phrase_cardinality_conflicts(thoughts['_complement_conflict'], utterance)
 
         elif approach == 'negation_conflicts':
-            say = self._phrase_negation_conflicts(thoughts.negation_conflicts(), utterance)
+            say = self._phrase_negation_conflicts(thoughts['_negation_conflicts'], utterance)
 
         elif approach == 'statement_novelty':
-            say = self._phrase_statement_novelty(thoughts.statement_novelties(), utterance)
+            say = self._phrase_statement_novelty(thoughts['_statement_novelty'], utterance)
 
         elif approach == 'entity_novelty':
-            say = self._phrase_type_novelty(thoughts.entity_novelty(), utterance)
+            say = self._phrase_type_novelty(thoughts['_entity_novelty'], utterance)
 
         elif approach == 'subject_gaps':
-            say = self._phrase_subject_gaps(thoughts.subject_gaps(), utterance)
+            say = self._phrase_subject_gaps(thoughts['_subject_gaps'], utterance)
 
         elif approach == 'object_gaps':
-            say = self._phrase_complement_gaps(thoughts.complement_gaps(), utterance)
+            say = self._phrase_complement_gaps(thoughts['_complement_gaps'], utterance)
 
         elif approach == 'overlaps':
-            say = self._phrase_overlaps(thoughts.overlaps(), utterance)
+            say = self._phrase_overlaps(thoughts['_overlaps'], utterance)
 
         if persist and say is None:
-            say = self.reply_to_statement(update, proactive, persist)
+            say = self.reply_to_statement(brain_response, proactive=proactive, persist=persist)
 
         if say and '-' in say:
             say = say.replace('-', ' ').replace('  ', ' ')
@@ -186,6 +187,8 @@ class LenkaReplier(BasicReplier):
         return say
 
     def phrase_all_conflicts(self, conflicts, speaker=None):
+        # type: (list[dict], str) -> str
+
         say = 'I have %s conflicts in my brain.' % len(conflicts)
         conflict = random.choice(conflicts)
 
@@ -203,8 +206,9 @@ class LenkaReplier(BasicReplier):
 
         return say
 
-    def _phrase_cardinality_conflicts(self, conflicts, utterance):
-        # type: (List[CardinalityConflict], Utterance) -> str
+    @staticmethod
+    def _phrase_cardinality_conflicts(conflicts, utterance):
+        # type: (list[dict], dict) -> str
 
         # There is no conflict, so nothing
         if not conflicts:
@@ -214,25 +218,29 @@ class LenkaReplier(BasicReplier):
         else:
             say = random.choice(CONFLICTING_KNOWLEDGE)
             conflict = random.choice(conflicts)
-            x = 'you' if conflict.author == utterance.chat_speaker else conflict.author
-            y = 'you' if utterance.triple.subject_name == conflict.author else utterance.triple.subject_name
+            x = 'you' if conflict['_provenance']['_author'] == utterance['author'] \
+                else conflict['_provenance']['_author']
+            y = 'you' if utterance['triple']['_subject']['_label'] == conflict['_provenance']['_author'] \
+                else utterance['triple']['_subject']['_label']
 
             # Checked
             say += ' %s told me in %s that %s %s %s, but now you tell me that %s %s %s' \
-                   % (x, conflict.date.strftime("%B"), y, utterance.triple.predicate_name, conflict.complement_name,
-                      y, utterance.triple.predicate_name, utterance.triple.complement_name)
+                   % (x, conflict['_provenance']['_date'], y, utterance['triple']['_predicate']['_label'],
+                      conflict['_complement']['_label'],
+                      y, utterance['triple']['_predicate']['_label'], utterance['triple']['_complement']['_label'])
 
         return say
 
-    def _phrase_negation_conflicts(self, conflicts, utterance):
-        # type: (List[NegationConflict], Utterance) -> str
+    @staticmethod
+    def _phrase_negation_conflicts(conflicts, utterance):
+        # type: (list[dict], dict) -> str
 
         say = None
 
         # There is conflict entries
         if conflicts and conflicts[0]:
-            affirmative_conflict = [item for item in conflicts if item.polarity_value == 'POSITIVE']
-            negative_conflict = [item for item in conflicts if item.polarity_value == 'NEGATIVE']
+            affirmative_conflict = [item for item in conflicts if item['_polarity_value'] == 'POSITIVE']
+            negative_conflict = [item for item in conflicts if item['_polarity_value'] == 'NEGATIVE']
 
             # There is a conflict, so we phrase it
             if affirmative_conflict and negative_conflict:
@@ -242,17 +250,18 @@ class LenkaReplier(BasicReplier):
                 negative_conflict = random.choice(negative_conflict)
 
                 say += ' %s told me in %s that %s %s %s, but in %s %s told me that %s did not %s %s' \
-                       % (affirmative_conflict.author, affirmative_conflict.date.strftime("%B"),
-                          utterance.triple.subject_name, utterance.triple.predicate_name,
-                          utterance.triple.complement_name,
-                          negative_conflict.date.strftime("%B"), negative_conflict.author,
-                          utterance.triple.subject_name, utterance.triple.predicate_name,
-                          utterance.triple.complement_name)
+                       % (affirmative_conflict['_provenance']['_author'], affirmative_conflict['_provenance']['_date'],
+                          utterance['triple']['_subject']['_label'], utterance['triple']['_predicate']['_label'],
+                          utterance['triple']['_complement']['_label'],
+                          negative_conflict['_provenance']['_date'], negative_conflict['_provenance']['_author'],
+                          utterance['triple']['_subject']['_label'], utterance['triple']['_predicate']['_label'],
+                          utterance['triple']['_complement']['_label'])
 
         return say
 
-    def _phrase_statement_novelty(self, novelties, utterance):
-        # type: (List[StatementNovelty], Utterance) -> str
+    @staticmethod
+    def _phrase_statement_novelty(novelties, utterance):
+        # type: (list[dict], dict) -> str
 
         # I do not know this before, so be happy to learn
         if not novelties:
@@ -261,21 +270,21 @@ class LenkaReplier(BasicReplier):
             say = random.choice(NEW_KNOWLEDGE)
 
             if entity_role == 'subject':
-                if 'person' in utterance.triple.complement.types:
+                if 'person' in ' or '.join(utterance['triple']['_complement']['_types']):
                     any_type = 'anybody'
-                elif 'location' in utterance.triple.complement.types:
+                elif 'location' in ' or '.join(utterance['triple']['_complement']['_types']):
                     any_type = 'anywhere'
                 else:
                     any_type = 'anything'
 
                 # Checked
-                say += ' I did not know %s that %s %s' % (any_type, utterance.triple.subject_name,
-                                                          utterance.triple.predicate_name)
+                say += ' I did not know %s that %s %s' % (any_type, utterance['triple']['_subject']['_label'],
+                                                          utterance['triple']['_predicate']['_label'])
 
             elif entity_role == 'object':
                 # Checked
-                say += ' I did not know anybody who %s %s' % (utterance.triple.predicate_name,
-                                                              utterance.triple.complement_name)
+                say += ' I did not know anybody who %s %s' % (utterance['triple']['_predicate']['_label'],
+                                                              utterance['triple']['_complement']['_label'])
 
         # I already knew this
         else:
@@ -283,23 +292,26 @@ class LenkaReplier(BasicReplier):
             novelty = random.choice(novelties)
 
             # Checked
-            say += ' %s told me about it in %s' % (novelty.author, novelty.date.strftime("%B"))
+            say += ' %s told me about it in %s' % (novelty['_provenance']['_author'],
+                                                   novelty['_provenance']['_date'])
 
         return say
 
     def _phrase_type_novelty(self, novelties, utterance):
-        # type: (EntityNovelty, Utterance) -> str
+        # type: (dict, dict) -> str
 
         entity_role = random.choice(['subject', 'object'])
-        entity_label = utterance.triple.subject_name if entity_role == 'subject' else utterance.triple.complement_name
-        novelty = novelties.subject if entity_role == 'subject' else novelties.complement
+        entity_label = utterance['triple']['_subject']['_label'] \
+            if entity_role == 'subject' else utterance['triple']['_complement']['_label']
+        novelty = novelties['_subject'] if entity_role == 'subject' else novelties['_complement']
 
         if novelty:
-            entity_label = self._replace_pronouns(utterance.chat_speaker, entity_label=entity_label, role=entity_role)
+            entity_label = self._replace_pronouns(utterance['author'], entity_label=entity_label,
+                                                  role=entity_role)
             say = random.choice(NEW_KNOWLEDGE)
             if entity_label != 'you':  # TODO or type person?
                 # Checked
-                say += ' I had never heard about %s before!' % self._replace_pronouns(utterance.chat_speaker,
+                say += ' I had never heard about %s before!' % self._replace_pronouns(utterance['author'],
                                                                                       entity_label=entity_label,
                                                                                       role='object')
             else:
@@ -309,7 +321,7 @@ class LenkaReplier(BasicReplier):
             say = random.choice(EXISTING_KNOWLEDGE)
             if entity_label != 'you':
                 # Checked
-                say += ' I have heard about %s before' % self._replace_pronouns(utterance.chat_speaker,
+                say += ' I have heard about %s before' % self._replace_pronouns(utterance['author'],
                                                                                 entity_label=entity_label,
                                                                                 role='object')
             else:
@@ -317,65 +329,76 @@ class LenkaReplier(BasicReplier):
 
         return say
 
-    def _phrase_subject_gaps(self, all_gaps, utterance):
-        # type: (Gaps, Utterance) -> str
+    @staticmethod
+    def _phrase_subject_gaps(all_gaps, utterance):
+        # type: (dict, dict) -> str
 
         entity_role = random.choice(['subject', 'object'])
-        gaps = all_gaps.subject if entity_role == 'subject' else all_gaps.complement
+        gaps = all_gaps['_subject'] if entity_role == 'subject' else all_gaps['_complement']
         say = None
 
         if entity_role == 'subject':
             say = random.choice(CURIOSITY)
 
             if not gaps:
-                say += ' What types can %s %s' % (utterance.triple.subject_name, utterance.triple.predicate_name)
+                say += ' What types can %s %s' % (utterance['triple']['_subject']['_label'],
+                                                  utterance['triple']['_predicate']['_label'])
 
             else:
                 gap = random.choice(gaps)
-                if 'is ' in gap.predicate_name or ' is' in gap.predicate_name:
-                    say += ' Is there a %s that %s %s?' % (
-                        gap.entity_range_name, gap.predicate_name, utterance.triple.subject_name)
-                elif ' of' in gap.predicate_name:
-                    say += ' Is there a %s that %s is %s?' % (
-                        gap.entity_range_name, utterance.triple.subject_name, gap.predicate_name)
+                if 'is ' in gap['_predicate']['_label'] or ' is' in gap['_predicate']['_label']:
+                    say += ' Is there a %s that %s %s?' % (' or'.join(gap['_entity']['_types']),
+                                                           gap['_predicate']['_label'],
+                                                           utterance['triple']['_subject']['_label'])
+                elif ' of' in gap['_predicate']['_label']:
+                    say += ' Is there a %s that %s is %s?' % (' or'.join(gap['_entity']['_types']),
+                                                              utterance['triple']['_subject']['_label'],
+                                                              gap['_predicate']['_label'])
 
-                elif ' ' in gap.predicate_name:
-                    say += ' Is there a %s that is %s %s?' % (
-                        gap.entity_range_name, gap.predicate_name, utterance.triple.subject_name)
+                elif ' ' in gap['_predicate']['_label']:
+                    say += ' Is there a %s that is %s %s?' % (' or'.join(gap['_entity']['_types']),
+                                                              gap['_predicate']['_label'],
+                                                              utterance['triple']['_subject']['_label'])
                 else:
                     # Checked
-                    say += ' Has %s %s %s?' % (utterance.triple.subject_name, gap.predicate_name, gap.entity_range_name)
+                    say += ' Has %s %s %s?' % (utterance['triple']['_subject']['_label'],
+                                               gap['_predicate']['_label'],
+                                               ' or'.join(gap['_entity']['_types']))
 
         elif entity_role == 'object':
             say = random.choice(CURIOSITY)
 
             if not gaps:
-                say += ' What types can %s a %s like %s' % (utterance.triple.predicate_name,
-                                                            utterance.triple.complement_name,
-                                                            utterance.triple.complement_name)
+                say += ' What kinds of things can %s a %s like %s' % (utterance['triple']['_predicate']['_label'],
+                                                                      utterance['triple']['_complement']['_label'],
+                                                                      utterance['triple']['_subject']['_label'])
 
             else:
                 gap = random.choice(gaps)
-                if '#' in gap.entity_range_name:
-                    say += ' What is %s %s?' % (utterance.triple.subject_name, gap.predicate_name)
-                elif ' ' in gap.predicate_name:
+                if '#' in ' or'.join(gap['_entity']['_types']):
+                    say += ' What is %s %s?' % (utterance['triple']['_subject']['_label'],
+                                                gap['_predicate']['_label'])
+                elif ' ' in gap['_predicate']['_label']:
                     # Checked
-                    say += ' Has %s ever %s %s?' % (
-                        gap.entity_range_name, gap.predicate_name, utterance.triple.subject_name)
+                    say += ' Has %s ever %s %s?' % (' or'.join(gap['_entity']['_types']),
+                                                    gap['_predicate']['_label'],
+                                                    utterance['triple']['_subject']['_label'])
 
                 else:
                     # Checked
-                    say += ' Has %s ever %s a %s?' % (utterance.triple.subject_name, gap.predicate_name,
-                                                      gap.entity_range_name)
+                    say += ' Has %s ever %s a %s?' % (utterance['triple']['_subject']['_label'],
+                                                      gap['_predicate']['_label'],
+                                                      ' or'.join(gap['_entity']['_types']))
 
         return say
 
-    def _phrase_complement_gaps(self, all_gaps, utterance):
-        # type: (Gaps, Utterance) -> str
+    @staticmethod
+    def _phrase_complement_gaps(all_gaps, utterance):
+        # type: (dict, dict) -> str
 
         # random choice between object or subject
         entity_role = random.choice(['subject', 'object'])
-        gaps = all_gaps.subject if entity_role == 'subject' else all_gaps.complement
+        gaps = all_gaps['_subject'] if entity_role == 'subject' else all_gaps['_complement']
         say = None
 
         if entity_role == 'subject':
@@ -383,46 +406,57 @@ class LenkaReplier(BasicReplier):
 
             if not gaps:
                 # Checked
-                say += ' What types can %s %s' % (utterance.triple.subject_name, utterance.triple.predicate_name)
+                say += ' What types can %s %s' % (utterance['triple']['_subject']['_label'],
+                                                  utterance['triple']['_predicate']['_label'])
 
             else:
                 gap = random.choice(gaps)  # TODO Lenka/Suzanna improve logic here
-                if ' in' in gap.predicate_name:  # ' by' in gap.predicate_name
-                    say += ' Is there a %s %s %s?' % (
-                        gap.entity_range_name, gap.predicate_name, utterance.triple.complement_name)
+                if ' in' in gap['_predicate']['_label']:  # ' by' in gap['_predicate']['_label']
+                    say += ' Is there a %s %s %s?' % (' or'.join(gap['_entity']['_types']),
+                                                      gap['_predicate']['_label'],
+                                                      utterance['triple']['_complement']['_label'])
                 else:
-                    say += ' Has %s %s by a %s?' % (utterance.triple.complement_name,
-                                                    gap.predicate_name,
-                                                    gap.entity_range_name)
+                    say += ' Has %s %s by a %s?' % (utterance['triple']['_complement']['_label'],
+                                                    gap['_predicate']['_label'],
+                                                    ' or'.join(gap['_entity']['_types']))
 
         elif entity_role == 'object':
             say = random.choice(CURIOSITY)
 
             if not gaps:
-                otypes = utterance.triple.complement.types_names if utterance.triple.complement.types_names != '' \
+                otypes = ' or'.join(utterance['triple']['_complement']['_types']) \
+                    if ' or'.join(utterance['triple']['_complement']['_types']) != '' \
                     else 'things'
-                stypes = utterance.triple.subject.types_names if utterance.triple.subject.types_names != '' else 'actors'
-                say += ' What types of %s like %s do %s usually %s' % (otypes, utterance.triple.complement_name, stypes,
-                                                                       utterance.triple.predicate_name)
+                stypes = ' or'.join(utterance['triple']['_subject']['_types']) \
+                    if ' or '.join(utterance['triple']['_subject']['_types']) != '' \
+                    else 'actors'
+                say += ' What types of %s like %s do %s usually %s' % (otypes,
+                                                                       utterance['triple']['_complement']['_label'],
+                                                                       stypes,
+                                                                       utterance['triple']['_predicate']['_label'])
 
             else:
                 gap = random.choice(gaps)
-                if '#' in gap.entity_range_name:
-                    say += ' What is %s %s?' % (utterance.triple.complement_name, gap.predicate_name)
-                elif ' by' in gap.predicate_name:
-                    say += ' Has %s ever %s a %s?' % (
-                        utterance.triple.complement_name, gap.predicate_name, gap.entity_range_name)
+                if '#' in ' or'.join(gap['_entity']['_types']):
+                    say += ' What is %s %s?' % (utterance['triple']['_complement']['_label'],
+                                                gap['_predicate']['_label'])
+                elif ' by' in gap['_predicate']['_label']:
+                    say += ' Has %s ever %s a %s?' % (utterance['triple']['_complement']['_label'],
+                                                      gap['_predicate']['_label'],
+                                                      ' or'.join(gap['_entity']['_types']))
                 else:
-                    say += ' Has a %s ever %s %s?' % (
-                        gap.entity_range_name, gap.predicate_name, utterance.triple.complement_name)
+                    say += ' Has a %s ever %s %s?' % (' or'.join(gap['_entity']['_types']),
+                                                      gap['_predicate']['_label'],
+                                                      utterance['triple']['_complement']['_label'])
 
         return say
 
-    def _phrase_overlaps(self, all_overlaps, utterance):
-        # type: (Overlaps, Utterance) -> str
+    @staticmethod
+    def _phrase_overlaps(all_overlaps, utterance):
+        # type: (dict, dict) -> str
 
         entity_role = random.choice(['subject', 'object'])
-        overlaps = all_overlaps.subject if entity_role == 'subject' else all_overlaps.complement
+        overlaps = all_overlaps['_subject'] if entity_role == 'subject' else all_overlaps['_complement']
         say = None
 
         if not overlaps:
@@ -431,39 +465,43 @@ class LenkaReplier(BasicReplier):
         elif len(overlaps) < 2 and entity_role == 'subject':
             say = random.choice(HAPPY)
 
-            say += ' Did you know that %s also %s %s' % (utterance.triple.subject_name, utterance.triple.predicate_name,
-                                                         random.choice(overlaps).entity_name)
+            say += ' Did you know that %s also %s %s' % (utterance['triple']['_subject']['_label'],
+                                                         utterance['triple']['_predicate']['_label'],
+                                                         random.choice(overlaps)['_entity']['_label'])
 
         elif len(overlaps) < 2 and entity_role == 'object':
             say = random.choice(HAPPY)
 
-            say += ' Did you know that %s also %s %s' % (random.choice(overlaps).entity_name,
-                                                         utterance.triple.predicate_name,
-                                                         utterance.triple.complement_name)
+            say += ' Did you know that %s also %s %s' % (random.choice(overlaps)['_entity']['_label'],
+                                                         utterance['triple']['_predicate']['_label'],
+                                                         utterance['triple']['_complement']['_label'])
 
         elif entity_role == 'subject':
             say = random.choice(HAPPY)
             sample = random.sample(overlaps, 2)
 
-            entity_0 = list(filter(str.isalpha, str(sample[0].entity_name)))
-            entity_1 = list(filter(str.isalpha, str(sample[1].entity_name)))
+            entity_0 = sample[0]['_entity']['_label']
+            entity_1 = sample[1]['_entity']['_label']
 
-            say += ' Now I know %s items that %s %s, like %s and %s' % (len(overlaps), utterance.triple.subject_name,
-                                                                        utterance.triple.predicate_name,
+            say += ' Now I know %s items that %s %s, like %s and %s' % (len(overlaps),
+                                                                        utterance['triple']['_subject']['_label'],
+                                                                        utterance['triple']['_predicate']['_label'],
                                                                         entity_0, entity_1)
 
         elif entity_role == 'object':
             say = random.choice(HAPPY)
             sample = random.sample(overlaps, 2)
-            types = sample[0].entity_types[0] if sample[0].entity_types else 'things'
+            types = ' or '.join(sample[0]['_entity']['_types']) if sample[0]['_entity']['_types'] else 'things'
             say += ' Now I know %s %s that %s %s, like %s and %s' % (len(overlaps), types,
-                                                                     utterance.triple.predicate_name,
-                                                                     utterance.triple.complement_name,
-                                                                     sample[0].entity_name, sample[1].entity_name)
+                                                                     utterance['triple']['_predicate']['_label'],
+                                                                     utterance['triple']['_complement']['_label'],
+                                                                     sample[0]['_entity']['_label'],
+                                                                     sample[1]['_entity']['_label'])
 
         return say
 
-    def _phrase_trust(self, trust):
+    @staticmethod
+    def _phrase_trust(trust):
         # type: (float) -> str
 
         if trust > 0.75:
@@ -473,17 +511,18 @@ class LenkaReplier(BasicReplier):
 
         return say
 
-    def _assign_spo(self, utterance, item):
+    @staticmethod
+    def _assign_spo(utterance, item):
         # INITIALIZATION
-        predicate = utterance.triple.predicate_name
+        predicate = utterance['triple']['_predicate']['_label']
 
-        if utterance.triple.subject_name != '':
-            subject = utterance.triple.subject_name
+        if utterance['triple']['_subject']['_label'] != '':
+            subject = utterance['triple']['_subject']['_label']
         else:
             subject = item['slabel']['value']
 
-        if utterance.triple.complement_name != '':
-            object = utterance.triple.complement_name
+        if utterance['triple']['_complement']['_label'] != '':
+            object = utterance['triple']['_complement']['_label']
         elif 'olabel' in item:
             object = item['olabel']['value']
         else:
@@ -491,7 +530,8 @@ class LenkaReplier(BasicReplier):
 
         return subject, predicate, object
 
-    def _deal_with_authors(self, author, previous_author, predicate, previous_predicate, say):
+    @staticmethod
+    def _deal_with_authors(author, previous_author, predicate, previous_predicate, say):
         # Deal with author
         if author != previous_author:
             say += author + ' told me '
@@ -516,7 +556,8 @@ class LenkaReplier(BasicReplier):
         entity = new_ent
         return entity
 
-    def _replace_pronouns(self, speaker, author=None, entity_label=None, role=None):
+    @staticmethod
+    def _replace_pronouns(speaker, author=None, entity_label=None, role=None):
         if entity_label is None and author is None:
             return speaker
 

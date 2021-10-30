@@ -25,8 +25,8 @@ class BasicReplier(object):
         self._log = logger.getChild(self.__class__.__name__)
         self._log.debug("Booted")
 
-    def reply_to_question(self):
+    def reply_to_question(self, brain_response):
         raise NotImplementedError()
 
-    def reply_to_statement(self):
+    def reply_to_statement(self, brain_response):
         raise NotImplementedError()

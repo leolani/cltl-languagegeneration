@@ -24,7 +24,8 @@ setup(
     package_data={'cltl.reply_generation': ['data/*']},
     python_requires='>=3.7',
     install_requires=[
-        'nltk~=3.4.4'
+        'nltk~=3.4.4',
+        'tqdm==4.62.3'
     ],
     setup_requires=['flake8']
 )

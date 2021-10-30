@@ -40,7 +40,7 @@ For using this repository as a package different project and on a different virt
 
 Then you can import it in a python script as:
 
-    import cltl.language_generation
+    import cltl.reply_generation
 
 ### Examples
 
