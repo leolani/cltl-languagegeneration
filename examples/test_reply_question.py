@@ -1,14 +1,18 @@
-from cltl.brain.long_term_memory import LongTermMemory
-from cltl.reply_generation.lenka_replier import LenkaReplier
-from cltl.triple_extraction.api import Chat, UtteranceHypothesis
+import json
 
-brain = LongTermMemory(clear_all=False)
-chat = Chat("Lenka")
+from tqdm import tqdm
+
+from cltl.reply_generation.lenka_replier import LenkaReplier
+
+# Read scenario from file
+scenario_file_name = 'question-responses.json'
+scenario_json_file = './data/' + scenario_file_name
+
+f = open(scenario_json_file, )
+scenario = json.load(f)
+
 replier = LenkaReplier()
 
-# one or several questions are queried in the brain
-chat.add_utterance([UtteranceHypothesis("This is a test", 1.0)])
-chat.last_utterance.analyze()
-brain_response = brain.query_brain(chat.last_utterance, reason_types=True)
-reply = replier.reply_to_question(brain_response)
-print(reply)
+for brain_response in tqdm(scenario):
+    reply = replier.reply_to_question(brain_response)
+    print(reply)
