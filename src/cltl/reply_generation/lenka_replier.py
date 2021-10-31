@@ -30,15 +30,17 @@ class LenkaReplier(BasicReplier):
         utterance = brain_response['question']
         response = brain_response['response']
 
-        # TODO revise by Lea (we conjugate the predicate by doing this)
-        utterance.casefold(format='natural')
+        # TODO revise (we conjugate the predicate by doing this)
+        utterance = casefold_capsule(utterance, format='natural')
 
         if not response:
-            if utterance['triple'].subject.types and utterance['triple']['_complement'].types and \
-                    utterance['triple']['_predicate']['_label']:
+            if ' or '.join(utterance['subject']['type']) \
+                    and ' or '.join(utterance['object']['type']) \
+                    and utterance['predicate']['type']:
                 say += "I know %s usually %s %s, but I do not know this case" % (
-                    random.choice(utterance['triple'].subject.types), str(utterance['triple']['_predicate']['_label']),
-                    random.choice(utterance['triple']['_complement'].types))
+                    random.choice(utterance['subject']['type']),
+                    str(utterance['predicate']['type']),
+                    random.choice(utterance['object']['type']))
                 return say
 
             else:
@@ -83,11 +85,11 @@ class LenkaReplier(BasicReplier):
             if predicate.endswith('is'):
 
                 say += object + ' is'
-                if utterance['triple']['_complement']['_label'].lower() == utterance['author'].lower() or \
-                        utterance['triple']['_subject']['_label'].lower() == utterance['author'].lower():
+                if utterance['object']['label'].lower() == utterance['author'].lower() or \
+                        utterance['subject']['label'].lower() == utterance['author'].lower():
                     say += ' your '
-                elif utterance['triple']['_complement']['_label'].lower() == 'leolani' or \
-                        utterance['triple']['_subject']['_label'].lower() == 'leolani':
+                elif utterance['object']['label'].lower() == 'leolani' or \
+                        utterance['subject']['label'].lower() == 'leolani':
                     say += ' my '
                 say += predicate[:-3]
 
@@ -104,7 +106,7 @@ class LenkaReplier(BasicReplier):
                     else:
                         # TODO: Is this a good default when 'number' is unknown?
                         predicate = 'is'
-                elif gram_person == 'third' and not '-' in predicate:
+                elif gram_person == 'third' and '-' not in predicate:
                     predicate += 's'
 
                 if item['certaintyValue']['value'] != 'CERTAIN':  # TODO extract correct certainty marker
@@ -513,20 +515,20 @@ class LenkaReplier(BasicReplier):
 
     @staticmethod
     def _assign_spo(utterance, item):
+        empty = ['', 'unknown', 'none']
+
         # INITIALIZATION
-        predicate = utterance['triple']['_predicate']['_label']
+        predicate = utterance['predicate']['type']
 
-        if utterance['triple']['_subject']['_label'] != '':
-            subject = utterance['triple']['_subject']['_label']
-        else:
+        if utterance['subject']['label'] is None or utterance['subject']['label'].lower() in empty:
             subject = item['slabel']['value']
+        else:
+            subject = utterance['subject']['label']
 
-        if utterance['triple']['_complement']['_label'] != '':
-            object = utterance['triple']['_complement']['_label']
-        elif 'olabel' in item:
+        if utterance['object']['label'] is None or utterance['object']['label'].lower() in empty:
             object = item['olabel']['value']
         else:
-            object = ''
+            object = utterance['object']['label']
 
         return subject, predicate, object
 
@@ -572,8 +574,8 @@ class LenkaReplier(BasicReplier):
             return pronoun
 
         # Fix author
-        elif author is not None:
-            if speaker.lower() == author.lower() or author.lower() not in ['', 'unknown', 'none', 'person']:
+        elif author is not None and author.lower() not in ['', 'unknown', 'none']:
+            if speaker.lower() == author.lower():
                 pronoun = 'you'
             elif author.lower() == 'leolani':
                 pronoun = 'I'
@@ -583,17 +585,11 @@ class LenkaReplier(BasicReplier):
             return pronoun
 
         # Entity
-        if entity_label is not None:
+        if entity_label is not None and entity_label.lower() not in ['', 'unknown', 'none']:
             if speaker.lower() in [entity_label.lower(), 'speaker'] or entity_label == 'Speaker':
                 pronoun = 'you'
             elif entity_label.lower() == 'leolani':
                 pronoun = 'I'
-                '''
-            elif entity_label.lower() in ['bram', 'piek']:
-                pronoun = 'he' if role == 'subject' else 'him' if role == 'object'  else entity_label
-            elif entity_label.lower() in ['selene', 'lenka', 'suzana']:
-                pronoun = 'she' if role == 'subject' else 'her'
-                '''
             else:
                 pronoun = entity_label
 
