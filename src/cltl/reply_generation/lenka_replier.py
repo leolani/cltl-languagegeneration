@@ -3,7 +3,7 @@ import random
 from cltl.combot.backend.utils.casefolding import casefold_text, casefold_capsule
 from cltl.reply_generation.api import BasicReplier
 from cltl.reply_generation.data.sentences import NEW_KNOWLEDGE, EXISTING_KNOWLEDGE, CONFLICTING_KNOWLEDGE, \
-    CURIOSITY, HAPPY, TRUST, NO_TRUST
+    CURIOSITY, HAPPY, TRUST, NO_TRUST, NO_ANSWER
 from cltl.reply_generation.utils.helper_functions import lexicon_lookup
 
 
@@ -34,9 +34,12 @@ class LenkaReplier(BasicReplier):
         utterance = casefold_capsule(utterance, format='natural')
 
         if not response:
-            if ' or '.join(utterance['subject']['type']) \
-                    and ' or '.join(utterance['object']['type']) \
-                    and utterance['predicate']['type']:
+            subject_types = ' or '.join(utterance['subject']['type']) \
+                if utterance['subject']['type'] is not None else ''
+            object_types = ' or '.join(utterance['object']['type']) \
+                if utterance['object']['type'] is not None else ''
+
+            if subject_types and object_types and utterance['predicate']['type']:
                 say += "I know %s usually %s %s, but I do not know this case" % (
                     random.choice(utterance['subject']['type']),
                     str(utterance['predicate']['type']),
@@ -44,7 +47,7 @@ class LenkaReplier(BasicReplier):
                 return say
 
             else:
-                return None
+                return random.choice(NO_ANSWER)
 
         # Each triple is hashed, so we can figure out when we are about the say things double
         handled_items = set()
