@@ -15,7 +15,7 @@
         ]
       },
       "predicate": {
-        "type": "see"
+        "label": "see"
       },
       "object": {
         "label": "pills",
@@ -31,10 +31,10 @@
         "_time": null,
         "_emotion": "UNDERSPECIFIED"
       },
-      "context_id": 209,
+      "context_id": 106,
       "date": "2021-03-12",
       "place": "Carl's room",
-      "place_id": 214,
+      "place_id": 235,
       "country": "NL",
       "region": "North Holland",
       "city": "Amsterdam",
@@ -913,7 +913,7 @@
         ]
       },
       "predicate": {
-        "type": "located under"
+        "label": "located under"
       },
       "object": {
         "label": "table",
@@ -928,10 +928,10 @@
         "_time": null,
         "_emotion": "UNDERSPECIFIED"
       },
-      "context_id": 209,
+      "context_id": 106,
       "date": "2021-03-12",
       "place": "Carl's room",
-      "place_id": 214,
+      "place_id": 235,
       "country": "NL",
       "region": "North Holland",
       "city": "Amsterdam",
@@ -1097,7 +1097,7 @@
         ]
       },
       "predicate": {
-        "type": "see"
+        "label": "see"
       },
       "object": {
         "label": "pills",
@@ -1112,10 +1112,10 @@
         "_time": null,
         "_emotion": "UNDERSPECIFIED"
       },
-      "context_id": 209,
+      "context_id": 106,
       "date": "2021-03-12",
       "place": "Carl's room",
-      "place_id": 214,
+      "place_id": 235,
       "country": "NL",
       "region": "North Holland",
       "city": "Amsterdam",

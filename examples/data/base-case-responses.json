@@ -14,7 +14,7 @@
         ]
       },
       "predicate": {
-        "type": "be-from"
+        "label": "be-from"
       },
       "object": {
         "label": "serbia",
@@ -29,10 +29,10 @@
         "_time": null,
         "_emotion": "UNDERSPECIFIED"
       },
-      "context_id": 116,
+      "context_id": 64,
       "date": "2017-10-24",
       "place": "Piek's office",
-      "place_id": 66,
+      "place_id": 50,
       "country": "Netherlands",
       "region": "North Holland",
       "city": "Amsterdam",
@@ -946,7 +946,7 @@
         ]
       },
       "predicate": {
-        "type": "be-from"
+        "label": "be-from"
       },
       "object": {
         "label": "netherlands",
@@ -961,10 +961,10 @@
         "_time": null,
         "_emotion": "UNDERSPECIFIED"
       },
-      "context_id": 116,
+      "context_id": 64,
       "date": "2017-10-24",
       "place": "Piek's office",
-      "place_id": 66,
+      "place_id": 50,
       "country": "Netherlands",
       "region": "North Holland",
       "city": "Amsterdam",
@@ -1878,7 +1878,7 @@
         ]
       },
       "predicate": {
-        "type": "be-from"
+        "label": "be-from"
       },
       "object": {
         "label": "mexico",
@@ -1893,10 +1893,10 @@
         "_time": null,
         "_emotion": "UNDERSPECIFIED"
       },
-      "context_id": 116,
+      "context_id": 64,
       "date": "2017-10-24",
       "place": "Piek's office",
-      "place_id": 66,
+      "place_id": 50,
       "country": "Netherlands",
       "region": "North Holland",
       "city": "Amsterdam",
@@ -2810,7 +2810,7 @@
         ]
       },
       "predicate": {
-        "type": "be-from"
+        "label": "be-from"
       },
       "object": {
         "label": "croatia",
@@ -2825,10 +2825,10 @@
         "_time": null,
         "_emotion": "UNDERSPECIFIED"
       },
-      "context_id": 116,
+      "context_id": 64,
       "date": "2017-10-24",
       "place": "Piek's office",
-      "place_id": 66,
+      "place_id": 50,
       "country": "Netherlands",
       "region": "North Holland",
       "city": "Amsterdam",
@@ -3742,7 +3742,7 @@
         ]
       },
       "predicate": {
-        "type": "be-from"
+        "label": "be-from"
       },
       "object": {
         "label": "netherlands",
@@ -3757,10 +3757,10 @@
         "_time": null,
         "_emotion": "UNDERSPECIFIED"
       },
-      "context_id": 116,
+      "context_id": 64,
       "date": "2017-10-24",
       "place": "Piek's office",
-      "place_id": 66,
+      "place_id": 50,
       "country": "Netherlands",
       "region": "North Holland",
       "city": "Amsterdam",
@@ -4723,7 +4723,7 @@
         ]
       },
       "predicate": {
-        "type": "be-from"
+        "label": "be-from"
       },
       "object": {
         "label": "serbia",
@@ -4738,10 +4738,10 @@
         "_time": null,
         "_emotion": "UNDERSPECIFIED"
       },
-      "context_id": 42,
+      "context_id": 227,
       "date": "2017-11-17",
       "place": "Piek's office",
-      "place_id": 66,
+      "place_id": 50,
       "country": "Netherlands",
       "region": "North Holland",
       "city": "Amsterdam",
@@ -5669,7 +5669,7 @@
         ]
       },
       "predicate": {
-        "type": "like"
+        "label": "like"
       },
       "object": {
         "label": "goulash",
@@ -5684,10 +5684,10 @@
         "_time": null,
         "_emotion": "UNDERSPECIFIED"
       },
-      "context_id": 42,
+      "context_id": 227,
       "date": "2017-11-17",
       "place": "Piek's office",
-      "place_id": 66,
+      "place_id": 50,
       "country": "Netherlands",
       "region": "North Holland",
       "city": "Amsterdam",
@@ -6602,7 +6602,7 @@
         ]
       },
       "predicate": {
-        "type": "like"
+        "label": "like"
       },
       "object": {
         "label": "romantic-movies",
@@ -6617,10 +6617,10 @@
         "_time": null,
         "_emotion": "UNDERSPECIFIED"
       },
-      "context_id": 42,
+      "context_id": 227,
       "date": "2017-11-17",
       "place": "Piek's office",
-      "place_id": 66,
+      "place_id": 50,
       "country": "Netherlands",
       "region": "North Holland",
       "city": "Amsterdam",
@@ -7535,7 +7535,7 @@
         ]
       },
       "predicate": {
-        "type": "like"
+        "label": "like"
       },
       "object": {
         "label": "ice-cream",
@@ -7550,10 +7550,10 @@
         "_time": null,
         "_emotion": "UNDERSPECIFIED"
       },
-      "context_id": 42,
+      "context_id": 227,
       "date": "2017-11-17",
       "place": "Piek's office",
-      "place_id": 66,
+      "place_id": 50,
       "country": "Netherlands",
       "region": "North Holland",
       "city": "Amsterdam",
@@ -8468,7 +8468,7 @@
         ]
       },
       "predicate": {
-        "type": "like"
+        "label": "like"
       },
       "object": {
         "label": "harry-potter",
@@ -8483,10 +8483,10 @@
         "_time": null,
         "_emotion": "UNDERSPECIFIED"
       },
-      "context_id": 42,
+      "context_id": 227,
       "date": "2017-11-17",
       "place": "Piek's office",
-      "place_id": 66,
+      "place_id": 50,
       "country": "Netherlands",
       "region": "North Holland",
       "city": "Amsterdam",
@@ -9401,7 +9401,7 @@
         ]
       },
       "predicate": {
-        "type": "like"
+        "label": "like"
       },
       "object": {
         "label": "action-movies",
@@ -9416,10 +9416,10 @@
         "_time": null,
         "_emotion": "UNDERSPECIFIED"
       },
-      "context_id": 42,
+      "context_id": 227,
       "date": "2017-11-17",
       "place": "Piek's office",
-      "place_id": 66,
+      "place_id": 50,
       "country": "Netherlands",
       "region": "North Holland",
       "city": "Amsterdam",
@@ -10351,7 +10351,7 @@
         ]
       },
       "predicate": {
-        "type": "like"
+        "label": "like"
       },
       "object": {
         "label": "balkenbrij",
@@ -10366,10 +10366,10 @@
         "_time": null,
         "_emotion": "UNDERSPECIFIED"
       },
-      "context_id": 42,
+      "context_id": 227,
       "date": "2017-11-17",
       "place": "Piek's office",
-      "place_id": 66,
+      "place_id": 50,
       "country": "Netherlands",
       "region": "North Holland",
       "city": "Amsterdam",
@@ -11284,7 +11284,7 @@
         ]
       },
       "predicate": {
-        "type": "like"
+        "label": "like"
       },
       "object": {
         "label": "sailing",
@@ -11299,10 +11299,10 @@
         "_time": null,
         "_emotion": "UNDERSPECIFIED"
       },
-      "context_id": 42,
+      "context_id": 227,
       "date": "2017-11-17",
       "place": "Piek's office",
-      "place_id": 66,
+      "place_id": 50,
       "country": "Netherlands",
       "region": "North Holland",
       "city": "Amsterdam",
@@ -12235,7 +12235,7 @@
         ]
       },
       "predicate": {
-        "type": "like"
+        "label": "like"
       },
       "object": {
         "label": "tacos",
@@ -12250,10 +12250,10 @@
         "_time": null,
         "_emotion": "UNDERSPECIFIED"
       },
-      "context_id": 42,
+      "context_id": 227,
       "date": "2017-11-17",
       "place": "Piek's office",
-      "place_id": 66,
+      "place_id": 50,
       "country": "Netherlands",
       "region": "North Holland",
       "city": "Amsterdam",
@@ -13168,7 +13168,7 @@
         ]
       },
       "predicate": {
-        "type": "like"
+        "label": "like"
       },
       "object": {
         "label": "pizza",
@@ -13183,10 +13183,10 @@
         "_time": null,
         "_emotion": "UNDERSPECIFIED"
       },
-      "context_id": 42,
+      "context_id": 227,
       "date": "2017-11-17",
       "place": "Piek's office",
-      "place_id": 66,
+      "place_id": 50,
       "country": "Netherlands",
       "region": "North Holland",
       "city": "Amsterdam",
@@ -14101,7 +14101,7 @@
         ]
       },
       "predicate": {
-        "type": "be-from"
+        "label": "be-from"
       },
       "object": {
         "label": "france",
@@ -14116,10 +14116,10 @@
         "_time": null,
         "_emotion": "UNDERSPECIFIED"
       },
-      "context_id": 42,
+      "context_id": 227,
       "date": "2017-11-17",
       "place": "Piek's office",
-      "place_id": 66,
+      "place_id": 50,
       "country": "Netherlands",
       "region": "North Holland",
       "city": "Amsterdam",
@@ -14871,7 +14871,7 @@
         "label": "lenka"
       },
       "predicate": {
-        "type": "mother-is"
+        "label": "mother-is"
       },
       "object": {
         "label": "ljubica",
@@ -14886,10 +14886,10 @@
         "_time": null,
         "_emotion": "UNDERSPECIFIED"
       },
-      "context_id": 58,
+      "context_id": 163,
       "date": "2018-03-20",
       "place": "Piek's office",
-      "place_id": 66,
+      "place_id": 50,
       "country": "Netherlands",
       "region": "North Holland",
       "city": "Amsterdam",
@@ -16380,7 +16380,7 @@
         "label": "lenka"
       },
       "predicate": {
-        "type": "favorite-is"
+        "label": "favorite-is"
       },
       "object": {
         "label": "cake",
@@ -16395,10 +16395,10 @@
         "_time": null,
         "_emotion": "UNDERSPECIFIED"
       },
-      "context_id": 58,
+      "context_id": 163,
       "date": "2018-03-20",
       "place": "Piek's office",
-      "place_id": 66,
+      "place_id": 50,
       "country": "Netherlands",
       "region": "North Holland",
       "city": "Amsterdam",
@@ -17313,7 +17313,7 @@
         ]
       },
       "predicate": {
-        "type": "like"
+        "label": "like"
       },
       "object": {
         "label": "coco",
@@ -17328,10 +17328,10 @@
         "_time": null,
         "_emotion": "UNDERSPECIFIED"
       },
-      "context_id": 58,
+      "context_id": 163,
       "date": "2018-03-20",
       "place": "Piek's office",
-      "place_id": 66,
+      "place_id": 50,
       "country": "Netherlands",
       "region": "North Holland",
       "city": "Amsterdam",
@@ -18246,7 +18246,7 @@
         ]
       },
       "predicate": {
-        "type": "like"
+        "label": "like"
       },
       "object": {
         "label": "the_big-lebowski",
@@ -18261,10 +18261,10 @@
         "_time": null,
         "_emotion": "UNDERSPECIFIED"
       },
-      "context_id": 58,
+      "context_id": 163,
       "date": "2018-03-20",
       "place": "Piek's office",
-      "place_id": 66,
+      "place_id": 50,
       "country": "Netherlands",
       "region": "North Holland",
       "city": "Amsterdam",
@@ -19196,7 +19196,7 @@
         ]
       },
       "predicate": {
-        "type": "like"
+        "label": "like"
       },
       "object": {
         "label": "2001_a_space-odyssey",
@@ -19211,10 +19211,10 @@
         "_time": null,
         "_emotion": "UNDERSPECIFIED"
       },
-      "context_id": 58,
+      "context_id": 163,
       "date": "2018-03-20",
       "place": "Piek's office",
-      "place_id": 66,
+      "place_id": 50,
       "country": "Netherlands",
       "region": "North Holland",
       "city": "Amsterdam",
@@ -20146,7 +20146,7 @@
         ]
       },
       "predicate": {
-        "type": "like"
+        "label": "like"
       },
       "object": {
         "label": "horror-movies",
@@ -20161,10 +20161,10 @@
         "_time": null,
         "_emotion": "UNDERSPECIFIED"
       },
-      "context_id": 58,
+      "context_id": 163,
       "date": "2018-03-20",
       "place": "Piek's office",
-      "place_id": 66,
+      "place_id": 50,
       "country": "Netherlands",
       "region": "North Holland",
       "city": "Amsterdam",
@@ -21113,7 +21113,7 @@
         ]
       },
       "predicate": {
-        "type": "like"
+        "label": "like"
       },
       "object": {
         "label": "action-movies",
@@ -21128,10 +21128,10 @@
         "_time": null,
         "_emotion": "UNDERSPECIFIED"
       },
-      "context_id": 167,
+      "context_id": 115,
       "date": "2018-03-23",
       "place": "Piek's office",
-      "place_id": 66,
+      "place_id": 50,
       "country": "Netherlands",
       "region": "North Holland",
       "city": "Amsterdam",
@@ -22097,7 +22097,7 @@
         ]
       },
       "predicate": {
-        "type": "be-from"
+        "label": "be-from"
       },
       "object": {
         "label": "italy",
@@ -22112,10 +22112,10 @@
         "_time": null,
         "_emotion": "UNDERSPECIFIED"
       },
-      "context_id": 167,
+      "context_id": 115,
       "date": "2018-03-23",
       "place": "Piek's office",
-      "place_id": 66,
+      "place_id": 50,
       "country": "Netherlands",
       "region": "North Holland",
       "city": "Amsterdam",
@@ -23061,7 +23061,7 @@
         ]
       },
       "predicate": {
-        "type": "like"
+        "label": "like"
       },
       "object": {
         "label": "goulash",
@@ -23076,10 +23076,10 @@
         "_time": null,
         "_emotion": "UNDERSPECIFIED"
       },
-      "context_id": 167,
+      "context_id": 115,
       "date": "2018-03-23",
       "place": "Piek's office",
-      "place_id": 66,
+      "place_id": 50,
       "country": "Netherlands",
       "region": "North Holland",
       "city": "Amsterdam",
@@ -24060,7 +24060,7 @@
         ]
       },
       "predicate": {
-        "type": "like"
+        "label": "like"
       },
       "object": {
         "label": "baseball",
@@ -24075,10 +24075,10 @@
         "_time": null,
         "_emotion": "UNDERSPECIFIED"
       },
-      "context_id": 167,
+      "context_id": 115,
       "date": "2018-03-23",
       "place": "Piek's office",
-      "place_id": 66,
+      "place_id": 50,
       "country": "Netherlands",
       "region": "North Holland",
       "city": "Amsterdam",
@@ -25079,7 +25079,7 @@
         ]
       },
       "predicate": {
-        "type": "like"
+        "label": "like"
       },
       "object": {
         "label": "apple-pie",
@@ -25094,10 +25094,10 @@
         "_time": null,
         "_emotion": "UNDERSPECIFIED"
       },
-      "context_id": 167,
+      "context_id": 115,
       "date": "2018-03-23",
       "place": "Piek's office",
-      "place_id": 66,
+      "place_id": 50,
       "country": "Netherlands",
       "region": "North Holland",
       "city": "Amsterdam",
@@ -26115,7 +26115,7 @@
         ]
       },
       "predicate": {
-        "type": "like"
+        "label": "like"
       },
       "object": {
         "label": "animated-movies",
@@ -26130,10 +26130,10 @@
         "_time": null,
         "_emotion": "UNDERSPECIFIED"
       },
-      "context_id": 167,
+      "context_id": 115,
       "date": "2018-03-23",
       "place": "Piek's office",
-      "place_id": 66,
+      "place_id": 50,
       "country": "Netherlands",
       "region": "North Holland",
       "city": "Amsterdam",
@@ -27065,7 +27065,7 @@
         ]
       },
       "predicate": {
-        "type": "like"
+        "label": "like"
       },
       "object": {
         "label": "acrobatics",
@@ -27080,10 +27080,10 @@
         "_time": null,
         "_emotion": "UNDERSPECIFIED"
       },
-      "context_id": 167,
+      "context_id": 115,
       "date": "2018-03-23",
       "place": "Piek's office",
-      "place_id": 66,
+      "place_id": 50,
       "country": "Netherlands",
       "region": "North Holland",
       "city": "Amsterdam",
@@ -28050,7 +28050,7 @@
         ]
       },
       "predicate": {
-        "type": "be-from"
+        "label": "be-from"
       },
       "object": {
         "label": "japan",
@@ -28065,10 +28065,10 @@
         "_time": null,
         "_emotion": "UNDERSPECIFIED"
       },
-      "context_id": 167,
+      "context_id": 115,
       "date": "2018-03-23",
       "place": "Piek's office",
-      "place_id": 66,
+      "place_id": 50,
       "country": "Netherlands",
       "region": "North Holland",
       "city": "Amsterdam",
@@ -28852,7 +28852,7 @@
         ]
       },
       "predicate": {
-        "type": "like"
+        "label": "like"
       },
       "object": {
         "label": "romantic-movies",
@@ -28867,10 +28867,10 @@
         "_time": null,
         "_emotion": "UNDERSPECIFIED"
       },
-      "context_id": 5,
+      "context_id": 239,
       "date": "2018-03-25",
       "place": "Piek's office",
-      "place_id": 66,
+      "place_id": 50,
       "country": "Netherlands",
       "region": "North Holland",
       "city": "Amsterdam",
@@ -29884,7 +29884,7 @@
         ]
       },
       "predicate": {
-        "type": "like"
+        "label": "like"
       },
       "object": {
         "label": "tacos",
@@ -29899,10 +29899,10 @@
         "_time": null,
         "_emotion": "UNDERSPECIFIED"
       },
-      "context_id": 5,
+      "context_id": 239,
       "date": "2018-03-25",
       "place": "Piek's office",
-      "place_id": 66,
+      "place_id": 50,
       "country": "Netherlands",
       "region": "North Holland",
       "city": "Amsterdam",
@@ -30866,7 +30866,7 @@
         ]
       },
       "predicate": {
-        "type": "like"
+        "label": "like"
       },
       "object": {
         "label": "tacos",
@@ -30881,10 +30881,10 @@
         "_time": null,
         "_emotion": "UNDERSPECIFIED"
       },
-      "context_id": 5,
+      "context_id": 239,
       "date": "2018-03-25",
       "place": "Piek's office",
-      "place_id": 66,
+      "place_id": 50,
       "country": "Netherlands",
       "region": "North Holland",
       "city": "Amsterdam",
@@ -31901,7 +31901,7 @@
         ]
       },
       "predicate": {
-        "type": "be-from"
+        "label": "be-from"
       },
       "object": {
         "label": "netherlands",
@@ -31916,10 +31916,10 @@
         "_time": null,
         "_emotion": "UNDERSPECIFIED"
       },
-      "context_id": 122,
+      "context_id": 61,
       "date": "2019-05-19",
       "place": "Piek's office",
-      "place_id": 66,
+      "place_id": 50,
       "country": "Netherlands",
       "region": "North Holland",
       "city": "Amsterdam",
@@ -32896,7 +32896,7 @@
         ]
       },
       "predicate": {
-        "type": "be-from"
+        "label": "be-from"
       },
       "object": {
         "label": "netherlands",
@@ -32911,10 +32911,10 @@
         "_time": null,
         "_emotion": "UNDERSPECIFIED"
       },
-      "context_id": 122,
+      "context_id": 61,
       "date": "2019-05-19",
       "place": "Piek's office",
-      "place_id": 66,
+      "place_id": 50,
       "country": "Netherlands",
       "region": "North Holland",
       "city": "Amsterdam",
@@ -33877,7 +33877,7 @@
         ]
       },
       "predicate": {
-        "type": "like"
+        "label": "like"
       },
       "object": {
         "label": "soccer",
@@ -33892,10 +33892,10 @@
         "_time": null,
         "_emotion": "UNDERSPECIFIED"
       },
-      "context_id": 122,
+      "context_id": 61,
       "date": "2019-05-19",
       "place": "Piek's office",
-      "place_id": 66,
+      "place_id": 50,
       "country": "Netherlands",
       "region": "North Holland",
       "city": "Amsterdam",
@@ -34879,7 +34879,7 @@
         ]
       },
       "predicate": {
-        "type": "know"
+        "label": "know"
       },
       "object": {
         "label": "lenka",
@@ -34894,10 +34894,10 @@
         "_time": null,
         "_emotion": "UNDERSPECIFIED"
       },
-      "context_id": 122,
+      "context_id": 61,
       "date": "2019-05-19",
       "place": "Piek's office",
-      "place_id": 66,
+      "place_id": 50,
       "country": "Netherlands",
       "region": "North Holland",
       "city": "Amsterdam",
@@ -36280,7 +36280,7 @@
         ]
       },
       "predicate": {
-        "type": "know"
+        "label": "know"
       },
       "object": {
         "label": "lenka",
@@ -36295,10 +36295,10 @@
         "_time": null,
         "_emotion": "UNDERSPECIFIED"
       },
-      "context_id": 122,
+      "context_id": 61,
       "date": "2019-05-19",
       "place": "Piek's office",
-      "place_id": 66,
+      "place_id": 50,
       "country": "Netherlands",
       "region": "North Holland",
       "city": "Amsterdam",
@@ -37698,7 +37698,7 @@
         ]
       },
       "predicate": {
-        "type": "be-from"
+        "label": "be-from"
       },
       "object": {
         "label": "peru",
@@ -37713,10 +37713,10 @@
         "_time": null,
         "_emotion": "UNDERSPECIFIED"
       },
-      "context_id": 34,
+      "context_id": 164,
       "date": "2020-06-09",
       "place": "Piek's office",
-      "place_id": 66,
+      "place_id": 50,
       "country": "Netherlands",
       "region": "North Holland",
       "city": "Amsterdam",
@@ -38692,7 +38692,7 @@
         ]
       },
       "predicate": {
-        "type": "have"
+        "label": "have"
       },
       "object": {
         "label": "teapot",
@@ -38707,10 +38707,10 @@
         "_time": null,
         "_emotion": "UNDERSPECIFIED"
       },
-      "context_id": 0,
+      "context_id": 49,
       "date": "2020-09-19",
       "place": "Piek's office",
-      "place_id": 66,
+      "place_id": 50,
       "country": "Netherlands",
       "region": "North Holland",
       "city": "Amsterdam",
@@ -39571,7 +39571,7 @@
         ]
       },
       "predicate": {
-        "type": "favorite-color-is"
+        "label": "favorite-color-is"
       },
       "object": {
         "label": "blue",
@@ -39586,10 +39586,10 @@
         "_time": null,
         "_emotion": "UNDERSPECIFIED"
       },
-      "context_id": 0,
+      "context_id": 49,
       "date": "2020-09-19",
       "place": "Piek's office",
-      "place_id": 66,
+      "place_id": 50,
       "country": "Netherlands",
       "region": "North Holland",
       "city": "Amsterdam",
@@ -40412,7 +40412,7 @@
         ]
       },
       "predicate": {
-        "type": "be"
+        "label": "be"
       },
       "object": {
         "label": "tall",
@@ -40427,10 +40427,10 @@
         "_time": null,
         "_emotion": "UNDERSPECIFIED"
       },
-      "context_id": 0,
+      "context_id": 49,
       "date": "2020-09-19",
       "place": "Piek's office",
-      "place_id": 66,
+      "place_id": 50,
       "country": "Netherlands",
       "region": "North Holland",
       "city": "Amsterdam",
@@ -41252,7 +41252,7 @@
         ]
       },
       "predicate": {
-        "type": "like"
+        "label": "like"
       },
       "object": {
         "label": "swimming-and-biking",
@@ -41267,10 +41267,10 @@
         "_time": null,
         "_emotion": "UNDERSPECIFIED"
       },
-      "context_id": 0,
+      "context_id": 49,
       "date": "2020-09-19",
       "place": "Piek's office",
-      "place_id": 66,
+      "place_id": 50,
       "country": "Netherlands",
       "region": "North Holland",
       "city": "Amsterdam",
@@ -42093,7 +42093,7 @@
         ]
       },
       "predicate": {
-        "type": "be-from"
+        "label": "be-from"
       },
       "object": {
         "label": "dusseldorf",
@@ -42108,10 +42108,10 @@
         "_time": null,
         "_emotion": "UNDERSPECIFIED"
       },
-      "context_id": 0,
+      "context_id": 49,
       "date": "2020-09-19",
       "place": "Piek's office",
-      "place_id": 66,
+      "place_id": 50,
       "country": "Netherlands",
       "region": "North Holland",
       "city": "Amsterdam",
@@ -43025,7 +43025,7 @@
         ]
       },
       "predicate": {
-        "type": "like"
+        "label": "like"
       },
       "object": {
         "label": "celery",
@@ -43040,10 +43040,10 @@
         "_time": null,
         "_emotion": "UNDERSPECIFIED"
       },
-      "context_id": 0,
+      "context_id": 49,
       "date": "2020-09-19",
       "place": "Piek's office",
-      "place_id": 66,
+      "place_id": 50,
       "country": "Netherlands",
       "region": "North Holland",
       "city": "Amsterdam",
@@ -43974,7 +43974,7 @@
         ]
       },
       "predicate": {
-        "type": "live-in"
+        "label": "live-in"
       },
       "object": {
         "label": "berlin",
@@ -43989,10 +43989,10 @@
         "_time": null,
         "_emotion": "UNDERSPECIFIED"
       },
-      "context_id": 153,
+      "context_id": 254,
       "date": "2020-09-21",
       "place": "Piek's office",
-      "place_id": 66,
+      "place_id": 50,
       "country": "Netherlands",
       "region": "North Holland",
       "city": "Amsterdam",
@@ -44924,7 +44924,7 @@
         ]
       },
       "predicate": {
-        "type": "be-from"
+        "label": "be-from"
       },
       "object": {
         "label": "munich",
@@ -44939,10 +44939,10 @@
         "_time": null,
         "_emotion": "UNDERSPECIFIED"
       },
-      "context_id": 153,
+      "context_id": 254,
       "date": "2020-09-21",
       "place": "Piek's office",
-      "place_id": 66,
+      "place_id": 50,
       "country": "Netherlands",
       "region": "North Holland",
       "city": "Amsterdam",
@@ -45838,7 +45838,7 @@
         ]
       },
       "predicate": {
-        "type": "study-in"
+        "label": "study-in"
       },
       "object": {
         "label": "budapest",
@@ -45853,10 +45853,10 @@
         "_time": null,
         "_emotion": "UNDERSPECIFIED"
       },
-      "context_id": 153,
+      "context_id": 254,
       "date": "2020-09-21",
       "place": "Piek's office",
-      "place_id": 66,
+      "place_id": 50,
       "country": "Netherlands",
       "region": "North Holland",
       "city": "Amsterdam",
@@ -46752,7 +46752,7 @@
         ]
       },
       "predicate": {
-        "type": "like"
+        "label": "like"
       },
       "object": {
         "label": "asian-food",
@@ -46767,10 +46767,10 @@
         "_time": null,
         "_emotion": "UNDERSPECIFIED"
       },
-      "context_id": 153,
+      "context_id": 254,
       "date": "2020-09-21",
       "place": "Piek's office",
-      "place_id": 66,
+      "place_id": 50,
       "country": "Netherlands",
       "region": "North Holland",
       "city": "Amsterdam",
@@ -47667,7 +47667,7 @@
         ]
       },
       "predicate": {
-        "type": "like"
+        "label": "like"
       },
       "object": {
         "label": "electronic-music",
@@ -47682,10 +47682,10 @@
         "_time": null,
         "_emotion": "UNDERSPECIFIED"
       },
-      "context_id": 153,
+      "context_id": 254,
       "date": "2020-09-21",
       "place": "Piek's office",
-      "place_id": 66,
+      "place_id": 50,
       "country": "Netherlands",
       "region": "North Holland",
       "city": "Amsterdam",
@@ -48526,7 +48526,7 @@
         ]
       },
       "predicate": {
-        "type": "hate"
+        "label": "hate"
       },
       "object": {
         "label": "cheese",
@@ -48541,10 +48541,10 @@
         "_time": null,
         "_emotion": "UNDERSPECIFIED"
       },
-      "context_id": 72,
+      "context_id": 86,
       "date": "2020-09-24",
       "place": "Piek's office",
-      "place_id": 66,
+      "place_id": 50,
       "country": "Netherlands",
       "region": "North Holland",
       "city": "Amsterdam",
@@ -49441,7 +49441,7 @@
         "_subject": [],
         "_complement": []
       },
-      "_trust": "0.4294335493691968"
+      "_trust": 0.5
     }
   },
   {
@@ -49459,7 +49459,7 @@
         ]
       },
       "predicate": {
-        "type": "like"
+        "label": "like"
       },
       "object": {
         "label": "dancing",
@@ -49474,10 +49474,10 @@
         "_time": null,
         "_emotion": "UNDERSPECIFIED"
       },
-      "context_id": 72,
+      "context_id": 86,
       "date": "2020-09-24",
       "place": "Piek's office",
-      "place_id": 66,
+      "place_id": 50,
       "country": "Netherlands",
       "region": "North Holland",
       "city": "Amsterdam",
@@ -50368,7 +50368,7 @@
         ],
         "_complement": []
       },
-      "_trust": "0.4294335493691968"
+      "_trust": 0.5
     }
   },
   {
@@ -50386,7 +50386,7 @@
         ]
       },
       "predicate": {
-        "type": "have"
+        "label": "have"
       },
       "object": {
         "label": "two-teapots",
@@ -50401,10 +50401,10 @@
         "_time": null,
         "_emotion": "UNDERSPECIFIED"
       },
-      "context_id": 72,
+      "context_id": 86,
       "date": "2020-09-24",
       "place": "Piek's office",
-      "place_id": 66,
+      "place_id": 50,
       "country": "Netherlands",
       "region": "North Holland",
       "city": "Amsterdam",
@@ -51264,7 +51264,7 @@
         ],
         "_complement": []
       },
-      "_trust": "0.4294335493691968"
+      "_trust": 0.5
     }
   },
   {
@@ -51282,7 +51282,7 @@
         ]
       },
       "predicate": {
-        "type": "like"
+        "label": "like"
       },
       "object": {
         "label": "chocolate-with-sea-salt",
@@ -51297,10 +51297,10 @@
         "_time": null,
         "_emotion": "UNDERSPECIFIED"
       },
-      "context_id": 72,
+      "context_id": 86,
       "date": "2020-09-24",
       "place": "Piek's office",
-      "place_id": 66,
+      "place_id": 50,
       "country": "Netherlands",
       "region": "North Holland",
       "city": "Amsterdam",
@@ -52197,7 +52197,7 @@
         "_subject": [],
         "_complement": []
       },
-      "_trust": "0.4294335493691968"
+      "_trust": 0.5
     }
   },
   {
@@ -52215,7 +52215,7 @@
         ]
       },
       "predicate": {
-        "type": "like"
+        "label": "like"
       },
       "object": {
         "label": "swimming-and-vikings",
@@ -52230,10 +52230,10 @@
         "_time": null,
         "_emotion": "UNDERSPECIFIED"
       },
-      "context_id": 72,
+      "context_id": 86,
       "date": "2020-09-24",
       "place": "Piek's office",
-      "place_id": 66,
+      "place_id": 50,
       "country": "Netherlands",
       "region": "North Holland",
       "city": "Amsterdam",
@@ -53071,7 +53071,7 @@
         ],
         "_complement": []
       },
-      "_trust": "0.4294335493691968"
+      "_trust": 0.5
     }
   },
   {
@@ -53089,7 +53089,7 @@
         ]
       },
       "predicate": {
-        "type": "speak"
+        "label": "speak"
       },
       "object": {
         "label": "german",
@@ -53104,10 +53104,10 @@
         "_time": null,
         "_emotion": "UNDERSPECIFIED"
       },
-      "context_id": 72,
+      "context_id": 86,
       "date": "2020-09-24",
       "place": "Piek's office",
-      "place_id": 66,
+      "place_id": 50,
       "country": "Netherlands",
       "region": "North Holland",
       "city": "Amsterdam",
@@ -53912,7 +53912,7 @@
         "_subject": [],
         "_complement": []
       },
-      "_trust": "0.4294335493691968"
+      "_trust": 0.5
     }
   },
   {
@@ -53930,7 +53930,7 @@
         ]
       },
       "predicate": {
-        "type": "like"
+        "label": "like"
       },
       "object": {
         "label": "drinking-beer",
@@ -53945,10 +53945,10 @@
         "_time": null,
         "_emotion": "UNDERSPECIFIED"
       },
-      "context_id": 149,
+      "context_id": 188,
       "date": "2020-09-29",
       "place": "Piek's office",
-      "place_id": 66,
+      "place_id": 50,
       "country": "Netherlands",
       "region": "North Holland",
       "city": "Amsterdam",
@@ -54827,7 +54827,7 @@
         "_subject": [],
         "_complement": []
       },
-      "_trust": "0.7157550064984984"
+      "_trust": 0.5
     }
   },
   {
@@ -54845,7 +54845,7 @@
         ]
       },
       "predicate": {
-        "type": "be-from"
+        "label": "be-from"
       },
       "object": {
         "label": "south-korea",
@@ -54860,10 +54860,10 @@
         "_time": null,
         "_emotion": "UNDERSPECIFIED"
       },
-      "context_id": 149,
+      "context_id": 188,
       "date": "2020-09-29",
       "place": "Piek's office",
-      "place_id": 66,
+      "place_id": 50,
       "country": "Netherlands",
       "region": "North Holland",
       "city": "Amsterdam",
@@ -55759,7 +55759,7 @@
         "_subject": [],
         "_complement": []
       },
-      "_trust": "0.7157550064984984"
+      "_trust": 0.5
     }
   },
   {
@@ -55777,7 +55777,7 @@
         ]
       },
       "predicate": {
-        "type": "ride"
+        "label": "ride"
       },
       "object": {
         "label": "bike",
@@ -55792,10 +55792,10 @@
         "_time": null,
         "_emotion": "UNDERSPECIFIED"
       },
-      "context_id": 149,
+      "context_id": 188,
       "date": "2020-09-29",
       "place": "Piek's office",
-      "place_id": 66,
+      "place_id": 50,
       "country": "Netherlands",
       "region": "North Holland",
       "city": "Amsterdam",
@@ -56600,7 +56600,7 @@
         "_subject": [],
         "_complement": []
       },
-      "_trust": "0.7157550064984984"
+      "_trust": 0.5
     }
   },
   {
@@ -56618,7 +56618,7 @@
         ]
       },
       "predicate": {
-        "type": "hate"
+        "label": "hate"
       },
       "object": {
         "label": "rats",
@@ -56633,10 +56633,10 @@
         "_time": null,
         "_emotion": "UNDERSPECIFIED"
       },
-      "context_id": 149,
+      "context_id": 188,
       "date": "2020-09-29",
       "place": "Piek's office",
-      "place_id": 66,
+      "place_id": 50,
       "country": "Netherlands",
       "region": "North Holland",
       "city": "Amsterdam",
@@ -57478,7 +57478,7 @@
         "_subject": [],
         "_complement": []
       },
-      "_trust": "0.7157550064984984"
+      "_trust": 0.5
     }
   },
   {
@@ -57496,7 +57496,7 @@
         ]
       },
       "predicate": {
-        "type": "drink"
+        "label": "drink"
       },
       "object": {
         "label": "beer",
@@ -57511,10 +57511,10 @@
         "_time": null,
         "_emotion": "UNDERSPECIFIED"
       },
-      "context_id": 149,
+      "context_id": 188,
       "date": "2020-09-29",
       "place": "Piek's office",
-      "place_id": 66,
+      "place_id": 50,
       "country": "Netherlands",
       "region": "North Holland",
       "city": "Amsterdam",
@@ -58393,7 +58393,7 @@
         "_subject": [],
         "_complement": []
       },
-      "_trust": "0.7157550064984984"
+      "_trust": 0.5
     }
   }
 ]

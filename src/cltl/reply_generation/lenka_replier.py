@@ -39,10 +39,10 @@ class LenkaReplier(BasicReplier):
             object_types = ' or '.join(utterance['object']['type']) \
                 if utterance['object']['type'] is not None else ''
 
-            if subject_types and object_types and utterance['predicate']['type']:
+            if subject_types and object_types and utterance['predicate']['label']:
                 say += "I know %s usually %s %s, but I do not know this case" % (
                     random.choice(utterance['subject']['type']),
-                    str(utterance['predicate']['type']),
+                    str(utterance['predicate']['label']),
                     random.choice(utterance['object']['type']))
                 return say
 
@@ -134,19 +134,20 @@ class LenkaReplier(BasicReplier):
         Phrase a random thought
         Parameters
         ----------
-        brain_response
-        entity_only
-        proactive
-        persist
+        brain_response: output of the brain
+        entity_only: Focus on thoughts related to entities (entity novelty, and gaps)
+        proactive: Include gaps and overlaps for a more proactive agent (an agents that asks questions and bonds over
+                known information)
+        persist: Keep looping through thoughts until you find one to phrase
 
         Returns
         -------
 
         """
         if entity_only:
-            options = ['cardinality_conflicts', 'negation_conflicts', 'statement_novelty', 'entity_novelty', 'trust']
+            options = ['entity_novelty', 'subject_gaps', 'object_gaps']
         else:
-            options = ['cardinality_conflicts', 'entity_novelty', 'trust']
+            options = ['cardinality_conflicts', 'negation_conflicts', 'statement_novelty', 'entity_novelty', 'trust']
 
         if proactive:
             options.extend(['subject_gaps', 'object_gaps', 'overlaps'])
@@ -521,7 +522,7 @@ class LenkaReplier(BasicReplier):
         empty = ['', 'unknown', 'none']
 
         # INITIALIZATION
-        predicate = utterance['predicate']['type']
+        predicate = utterance['predicate']['label']
 
         if utterance['subject']['label'] is None or utterance['subject']['label'].lower() in empty:
             subject = item['slabel']['value']
