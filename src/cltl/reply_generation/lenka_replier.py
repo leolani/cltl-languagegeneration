@@ -129,7 +129,7 @@ class LenkaReplier(BasicReplier):
 
         return say.replace('-', ' ').replace('  ', ' ')
 
-    def reply_to_statement(self, brain_response, entity_only=True, proactive=True, persist=False):
+    def reply_to_statement(self, brain_response, entity_only=False, proactive=True, persist=False):
         """
         Phrase a random thought
         Parameters
