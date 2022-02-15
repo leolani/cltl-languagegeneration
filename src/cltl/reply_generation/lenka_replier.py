@@ -34,6 +34,7 @@ class LenkaReplier(BasicReplier):
         utterance = casefold_capsule(utterance, format='natural')
 
         if not response:
+            self._log.info(f"Empty response")
             subject_types = ' or '.join(utterance['subject']['type']) \
                 if utterance['subject']['type'] is not None else ''
             object_types = ' or '.join(utterance['object']['type']) \
@@ -152,6 +153,8 @@ class LenkaReplier(BasicReplier):
         if proactive:
             options.extend(['subject_gaps', 'object_gaps', 'overlaps'])
 
+        self._log.debug(f'Thoughts options: {options}')
+
         # Casefold and select approach randomly
         utterance = brain_response['statement']
         if utterance['triple'] is None:
@@ -160,9 +163,11 @@ class LenkaReplier(BasicReplier):
         utterance = casefold_capsule(utterance, format='natural')
         thoughts = brain_response['thoughts']
         thoughts = casefold_capsule(thoughts, format='natural')
-        approach = random.choice(options)
-        say = None
 
+        approach = random.choice(options)
+        self._log.info(f"Choosing to phrase {approach}")
+
+        say = None
         if approach == 'cardinality_conflicts':
             say = self._phrase_cardinality_conflicts(thoughts['_complement_conflict'], utterance)
 

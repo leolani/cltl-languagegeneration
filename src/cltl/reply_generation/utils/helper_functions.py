@@ -1,5 +1,4 @@
 import json
-import logging
 import os
 import urllib.error
 import urllib.parse
@@ -10,8 +9,6 @@ from nltk import tree as ntree
 from nltk.stem import WordNetLemmatizer
 
 from . import wordnet_utils as wu
-
-LOG = logging.getLogger(__name__)
 
 wnl = WordNetLemmatizer()
 
