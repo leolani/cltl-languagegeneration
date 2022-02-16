@@ -1,10 +1,16 @@
 import random
 
-from cltl.combot.backend.utils.casefolding import casefold_text, casefold_capsule
-from cltl.reply_generation.api import BasicReplier
+from cltl.combot.backend.utils.casefolding import casefold_capsule
+from cltl.reply_generation.api import BasicReplier, ThoughtSelector
 from cltl.reply_generation.data.sentences import NEW_KNOWLEDGE, EXISTING_KNOWLEDGE, CONFLICTING_KNOWLEDGE, \
     CURIOSITY, HAPPY, TRUST, NO_TRUST, NO_ANSWER
 from cltl.reply_generation.utils.helper_functions import lexicon_lookup
+
+
+class RandomSelector(ThoughtSelector):
+
+    def select(self, thoughts):
+        return random.choice(list(thoughts))
 
 
 class LenkaReplier(BasicReplier):
@@ -19,6 +25,8 @@ class LenkaReplier(BasicReplier):
         """
 
         super(LenkaReplier, self).__init__()
+        self.__thought_selector = RandomSelector()
+        self._log.debug(f"Random Selector ready")
 
     def reply_to_question(self, brain_response):
         say = ''
@@ -145,77 +153,72 @@ class LenkaReplier(BasicReplier):
         -------
 
         """
-        if entity_only:
-            options = ['entity_novelty', 'subject_gaps', 'object_gaps']
-        else:
-            options = ['cardinality_conflicts', 'negation_conflicts', 'statement_novelty', 'entity_novelty', 'trust']
-
-        if proactive:
-            options.extend(['subject_gaps', 'object_gaps', 'overlaps'])
-
-        self._log.debug(f'Thoughts options: {options}')
-
-        # Casefold and select approach randomly
+        # Quick check if there is anything to do here
         utterance = brain_response['statement']
         if utterance['triple'] is None:
             return None
 
+        # What types of thoughts will we phrase?
+        if entity_only:
+            options = ['_entity_novelty', '_subject_gaps', '_complement_gaps']
+        else:
+            options = ['_complement_conflict', '_negation_conflicts', '_statement_novelty', '_entity_novelty', '_trust']
+
+        if proactive:
+            options.extend(['_subject_gaps', '_complement_gaps', '_overlaps'])
+        self._log.debug(f'Thoughts options: {options}')
+
+        # Casefold
         utterance = casefold_capsule(utterance, format='natural')
         thoughts = brain_response['thoughts']
         thoughts = casefold_capsule(thoughts, format='natural')
 
-        approach = random.choice(options)
-        self._log.info(f"Choosing to phrase {approach}")
+        # Select thought
+        thought_type = self.__thought_selector.select(options)
+        self._log.info(f"Chosen thought type: {thought_type}")
 
-        say = None
-        if approach == 'cardinality_conflicts':
-            say = self._phrase_cardinality_conflicts(thoughts['_complement_conflict'], utterance)
+        # Generate reply
+        reply = self.phrase_correct_thought(utterance, thought_type, thoughts[thought_type])
 
-        elif approach == 'negation_conflicts':
-            say = self._phrase_negation_conflicts(thoughts['_negation_conflicts'], utterance)
+        if persist and reply is None:
+            reply = self.reply_to_statement(brain_response, proactive=proactive, persist=persist)
 
-        elif approach == 'statement_novelty':
-            say = self._phrase_statement_novelty(thoughts['_statement_novelty'], utterance)
+        return reply
 
-        elif approach == 'entity_novelty':
-            say = self._phrase_type_novelty(thoughts['_entity_novelty'], utterance)
+    def phrase_correct_thought(self, utterance, thought_type, thought_info, fallback=False):
+        reply = None
+        if thought_type == "_complement_conflict":
+            reply = self._phrase_cardinality_conflicts(thought_info, utterance)
 
-        elif approach == 'subject_gaps':
-            say = self._phrase_subject_gaps(thoughts['_subject_gaps'], utterance)
+        elif thought_type == "_negation_conflicts":
+            reply = self._phrase_negation_conflicts(thought_info, utterance)
 
-        elif approach == 'object_gaps':
-            say = self._phrase_complement_gaps(thoughts['_complement_gaps'], utterance)
+        elif thought_type == "_statement_novelty":
+            reply = self._phrase_statement_novelty(thought_info, utterance)
 
-        elif approach == 'overlaps':
-            say = self._phrase_overlaps(thoughts['_overlaps'], utterance)
+        elif thought_type == "_entity_novelty":
+            reply = self._phrase_type_novelty(thought_info, utterance)
 
-        if persist and say is None:
-            say = self.reply_to_statement(brain_response, proactive=proactive, persist=persist)
+        elif thought_type == "_complement_gaps":
+            reply = self._phrase_complement_gaps(thought_info, utterance)
 
-        if say and '-' in say:
-            say = say.replace('-', ' ').replace('  ', ' ')
+        elif thought_type == "_subject_gaps":
+            reply = self._phrase_subject_gaps(thought_info, utterance)
 
-        return say
+        elif thought_type == "_overlaps":
+            reply = self._phrase_overlaps(thought_info, utterance)
 
-    def phrase_all_conflicts(self, conflicts, speaker=None):
-        # type: (list[dict], str) -> str
+        elif thought_type == "_trust":
+            reply = self._phrase_trust(thought_info)
 
-        say = 'I have %s conflicts in my brain.' % len(conflicts)
-        conflict = random.choice(conflicts)
+        if fallback and reply is None:  # Fallback strategy
+            reply = self._phrase_fallback()
 
-        # Conflict of subject
-        if len(conflict['objects']) > 1:
-            predicate = casefold_text(conflict['predicate'], format='natural')
-            options = ['%s %s like %s told me' % (predicate, item['value'], item['author']) for item in
-                       conflict['objects']]
-            options = ' or '.join(options)
-            subject = self._replace_pronouns(speaker, author=conflict['objects'][1]['author'],
-                                             entity_label=conflict['subject'],
-                                             role='subject')
+        # Formatting
+        if reply:
+            reply = reply.replace("-", " ").replace("  ", " ")
 
-            say = say + ' For example, I do not know if %s %s' % (subject, options)
-
-        return say
+        return reply
 
     @staticmethod
     def _phrase_cardinality_conflicts(conflicts, utterance):
@@ -515,12 +518,21 @@ class LenkaReplier(BasicReplier):
     def _phrase_trust(trust):
         # type: (float) -> str
 
-        if trust > 0.75:
+        if float(trust) > 0.75:
             say = random.choice(TRUST)
         else:
             say = random.choice(NO_TRUST)
 
         return say
+
+    def _phrase_fallback(self):
+        """Phrases a fallback utterance when an error has occurred or no
+        thoughts were generated.
+
+        returns: phrase
+        """
+        self._log.info(f"Empty response")
+        return "I do not know what to say."
 
     @staticmethod
     def _assign_spo(utterance, item):

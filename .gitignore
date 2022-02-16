@@ -136,3 +136,6 @@ dmypy.json
 
 # Mac files
 .DS_Store
+
+# exclusions
+/src/cltl/reply_generation/next_sentence_prediction/model/

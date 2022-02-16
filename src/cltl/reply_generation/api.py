@@ -1,6 +1,12 @@
 from cltl.reply_generation import logger
 
 
+class ThoughtSelector(object):
+
+    def select(self, options):
+        raise NotImplementedError()
+
+
 class BasicReplier(object):
 
     def __init__(self):
@@ -14,9 +20,16 @@ class BasicReplier(object):
 
         self._log = logger.getChild(self.__class__.__name__)
         self._log.info("Booted")
+        self.__thought_selector = ThoughtSelector()
+
+    @property
+    def thought_selector(self):
+        return self.__thought_selector
 
     def reply_to_question(self, brain_response):
         raise NotImplementedError()
 
     def reply_to_statement(self, brain_response):
         raise NotImplementedError()
+
+
