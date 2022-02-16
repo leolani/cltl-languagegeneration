@@ -23,4 +23,3 @@ for brain_response in tqdm(scenario):
 
     print(f"Utterance: {brain_response['question']['utterance']}")
     print(f"Reply: {reply}")
-

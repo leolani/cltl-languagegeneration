@@ -1,4 +1,5 @@
 import random
+from typing import Optional
 
 from cltl.combot.backend.utils.casefolding import casefold_capsule
 from cltl.reply_generation.api import BasicReplier, ThoughtSelector
@@ -222,7 +223,7 @@ class LenkaReplier(BasicReplier):
 
     @staticmethod
     def _phrase_cardinality_conflicts(conflicts, utterance):
-        # type: (list[dict], dict) -> str
+        # type: (list[dict], dict) -> Optional[str]
 
         # There is no conflict, so nothing
         if not conflicts:
@@ -247,7 +248,7 @@ class LenkaReplier(BasicReplier):
 
     @staticmethod
     def _phrase_negation_conflicts(conflicts, utterance):
-        # type: (list[dict], dict) -> str
+        # type: (list[dict], dict) -> Optional[str]
 
         say = None
 
@@ -345,7 +346,7 @@ class LenkaReplier(BasicReplier):
 
     @staticmethod
     def _phrase_subject_gaps(all_gaps, utterance):
-        # type: (dict, dict) -> str
+        # type: (dict, dict) -> Optional[str]
 
         entity_role = random.choice(['subject', 'object'])
         gaps = all_gaps['_subject'] if entity_role == 'subject' else all_gaps['_complement']
@@ -408,7 +409,7 @@ class LenkaReplier(BasicReplier):
 
     @staticmethod
     def _phrase_complement_gaps(all_gaps, utterance):
-        # type: (dict, dict) -> str
+        # type: (dict, dict) -> Optional[str]
 
         # random choice between object or subject
         entity_role = random.choice(['subject', 'object'])
@@ -467,7 +468,7 @@ class LenkaReplier(BasicReplier):
 
     @staticmethod
     def _phrase_overlaps(all_overlaps, utterance):
-        # type: (dict, dict) -> str
+        # type: (dict, dict) -> Optional[str]
 
         entity_role = random.choice(['subject', 'object'])
         overlaps = all_overlaps['_subject'] if entity_role == 'subject' else all_overlaps['_complement']
