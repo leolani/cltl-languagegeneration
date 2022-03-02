@@ -11,7 +11,6 @@ import random
 
 import matplotlib.pyplot as plt
 import numpy as np
-
 from cltl.reply_generation.api import ThoughtSelector
 
 
@@ -159,7 +158,7 @@ class UCB(ThoughtSelector):
 
     # Plotting
 
-    def plot(self, max_bars=16):
+    def plot(self, max_bars=16, filename=None):
         """Plots the value estimates for each action and their associated
         uncertainties in a bar plot.
 
@@ -203,4 +202,8 @@ class UCB(ThoughtSelector):
         plt.xlabel("$Actions$ $(a)$")
         plt.xticks(range(len(a)), a, rotation=45, ha="right")
         plt.bar(range(len(a)), q)
+
+        if filename:
+            plt.savefig(filename + f"rl.png", dpi=300)
+            
         plt.show()

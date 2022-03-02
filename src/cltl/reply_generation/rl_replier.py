@@ -25,13 +25,24 @@ class RLReplier(LenkaReplier):
         returns: None
         """
         super(RLReplier, self).__init__()
-        self.__thought_selector = UCB()
+        self._thought_selector = UCB()
         self._log.debug(f"UCB RL Selector ready")
 
-        self.__brain = brain
-        self.__thought_selector.load(savefile)
-        self.__last_thought = None
-        self.__brain_states = []
+        self._brain = brain
+        self._thought_selector.load(savefile)
+        self._last_thought = None
+        self._brain_states = []
+
+    @property
+    def brain_states(self):
+        return self._brain_states
+
+    def _evaluate_brain_state(self):
+        claims = float(self._brain.count_statements())
+        entities = len(self._brain.get_labels_and_classes())
+        brain_state = claims + entities
+
+        return brain_state
 
     def reward_thought(self):
         """Rewards the last thought phrased by the replier by updating its
@@ -42,23 +53,21 @@ class RLReplier(LenkaReplier):
         """
         brain_state = 0
 
-        if self.__brain:
+        if self._brain:
             # Re-evaluate state of brain
-            claims = float(self.__brain.count_statements())
-            entities = len(self.__brain.get_labels_and_classes())
-            brain_state = claims + entities
+            brain_state = self._evaluate_brain_state()
 
-        self.__brain_states.append(brain_state)
+        self._brain_states.append(brain_state)
         self._log.info(f"Brain state: {brain_state}")
 
         # Reward last thought with R = S_brain(t) - S_brain(t-1)
-        if self.__last_thought:
-            new_state = self.__brain_states[-1]
-            old_state = self.__brain_states[-2]
+        if self._last_thought:
+            new_state = self._brain_states[-1]
+            old_state = self._brain_states[-2]
             reward = new_state - old_state
 
-            self.__thought_selector.update_utility(self.__last_thought, reward)
-            self._log.info(f"{reward} reward due to {self.__last_thought}")
+            self._thought_selector.update_utility(self._last_thought, reward)
+            self._log.info(f"{reward} reward due to {self._last_thought}")
 
     def reply_to_statement(self, brain_response, entity_only=False, proactive=True, persist=False):
         """Selects a Thought from the brain response to verbalize.
@@ -72,8 +81,8 @@ class RLReplier(LenkaReplier):
         thoughts = thoughts_from_brain(brain_response)
 
         # Select thought
-        self.__last_thought = self.__thought_selector.select(thoughts.keys())
-        thought_type, thought_info = thoughts[self.__last_thought]
+        self._last_thought = self._thought_selector.select(thoughts.keys())
+        thought_type, thought_info = thoughts[self._last_thought]
         self._log.info(f"Chosen thought type: {thought_type}")
 
         # Preprocess thought_info and utterance (triples)

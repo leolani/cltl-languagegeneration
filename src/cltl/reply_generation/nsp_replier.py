@@ -24,7 +24,7 @@ class NSPReplier(LenkaReplier):
         returns: None
         """
         super(NSPReplier, self).__init__()
-        self.__thought_selector = NSP(model_filepath)
+        self._thought_selector = NSP(model_filepath)
         self._log.debug(f"NSP Selector ready")
 
     def reply_to_statement(self, brain_response, entity_only=False, proactive=True, persist=False):
@@ -54,11 +54,11 @@ class NSPReplier(LenkaReplier):
 
             # Score response w.r.t. context
             context = utterance["utterance"]
-            score = self.__thought_selector.score_response(context, reply)
+            score = self._thought_selector.score_response(context, reply)
             data.append((thought_type, reply, score))
 
         # Select thought
-        best = self.__thought_selector.select(data)
+        best = self._thought_selector.select(data)
         self._log.info(f"Chosen thought type: {best[0]}")
         self._log.info(f"Response score: {best[2]}")
 

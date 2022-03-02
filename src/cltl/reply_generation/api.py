@@ -20,11 +20,11 @@ class BasicReplier(object):
 
         self._log = logger.getChild(self.__class__.__name__)
         self._log.info("Booted")
-        self.__thought_selector = ThoughtSelector()
+        self._thought_selector = ThoughtSelector()
 
     @property
     def thought_selector(self):
-        return self.__thought_selector
+        return self._thought_selector
 
     def reply_to_question(self, brain_response):
         raise NotImplementedError()
