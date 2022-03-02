@@ -77,3 +77,4 @@ for more information.
 * [Selene Báez Santamaría](https://selbaez.github.io/)
 * [Thomas Baier](https://www.linkedin.com/in/thomas-baier-05519030/)
 * [Piek Vossen](https://github.com/piekvossen)
+* [Thomas Bellucci](https://github.com/thomas097)
