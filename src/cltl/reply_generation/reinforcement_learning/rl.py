@@ -204,6 +204,6 @@ class UCB(ThoughtSelector):
         plt.bar(range(len(a)), q)
 
         if filename:
-            plt.savefig(filename + f"rl.png", dpi=300)
+            plt.savefig(filename / f"results.png", dpi=300)
             
         plt.show()
