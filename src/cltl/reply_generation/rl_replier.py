@@ -61,7 +61,7 @@ class RLReplier(LenkaReplier):
         self._log.info(f"Brain state: {brain_state}")
 
         # Reward last thought with R = S_brain(t) - S_brain(t-1)
-        if self._last_thought:
+        if self._last_thought and self._brain_states[-1] and self._brain_states[-1]:
             new_state = self._brain_states[-1]
             old_state = self._brain_states[-2]
             reward = new_state - old_state
