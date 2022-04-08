@@ -25,10 +25,13 @@ setup(
     python_requires='>=3.7',
     install_requires=[
         'nltk~=3.4.4',
-        'tqdm==4.62.3',
-        'torch==1.10.2',
-        'transformers==4.16.2',
-        'matplotlib==3.5.1'
     ],
-    setup_requires=['flake8']
+    setup_requires=['flake8'],
+    extras_require={
+        "rl": [
+            'torch~=1.10.2',
+            'transformers~=4.16.2',
+            'tqdm~=4.62',
+            'matplotlib~=3.5'
+        ]}
 )
