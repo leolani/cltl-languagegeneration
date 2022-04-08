@@ -1,13 +1,13 @@
 import random
 from typing import Optional
 
-from cltl.combot.backend.utils.casefolding import casefold_capsule
+from cltl.reply_generation.commons.casefolding import casefold_capsule
 from cltl.reply_generation.api import BasicReplier, ThoughtSelector
 from cltl.reply_generation.data.sentences import NEW_KNOWLEDGE, EXISTING_KNOWLEDGE, CONFLICTING_KNOWLEDGE, \
     CURIOSITY, HAPPY, TRUST, NO_TRUST, NO_ANSWER
 from cltl.reply_generation.utils.helper_functions import lexicon_lookup
 
-from cltl.combot.backend.utils.triple_helpers import filtered_types_names
+from cltl.reply_generation.commons.triple_helpers import filtered_types_names
 
 
 class RandomSelector(ThoughtSelector):
