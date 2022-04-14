@@ -28,10 +28,17 @@ setup(
     ],
     setup_requires=['flake8'],
     extras_require={
-        "rl": [
+        "impl": [
             'torch~=1.10.2',
             'transformers~=4.16.2',
             'tqdm~=4.62',
             'matplotlib~=3.5'
-        ]}
+        ],
+        "service": [
+            "cltl.backend",
+            "cltl.combot",
+            "emissor",
+            "requests",
+        ]
+    }
 )
