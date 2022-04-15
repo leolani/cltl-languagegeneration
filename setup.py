@@ -25,14 +25,14 @@ setup(
     python_requires='>=3.7',
     install_requires=[
         'nltk~=3.4.4',
+        'tqdm~=4.62',
+        'matplotlib~=3.4'
     ],
     setup_requires=['flake8'],
     extras_require={
-        "impl": [
+        "transformers": [
             'torch~=1.10.2',
             'transformers~=4.16.2',
-            'tqdm~=4.62',
-            'matplotlib~=3.5'
         ],
         "service": [
             "cltl.backend",
