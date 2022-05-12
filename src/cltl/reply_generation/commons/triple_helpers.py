@@ -1,4 +1,4 @@
-NOT_TO_MENTION_TYPES = ['instance', "article", "prep", "numeral", "adv", "noun"]
+NOT_TO_MENTION_TYPES = ['instance']
 
 
 def continuous_to_enum(enum_class, original_value):
@@ -54,7 +54,7 @@ def fix_nlp_types(types):
             fixed_types.append('obligation')
 
         elif "modal" in el:
-            fixed_types.append('modal')
+            fixed_types.append('x')
 
         # Exclude this type
         elif "prep" == el or "adj" in el or "noun.Tops" in el or "article:definite" in el or "article:indefinite" in el:
