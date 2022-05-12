@@ -87,6 +87,9 @@ def fix_nlp_types(types):
 
 
 def filtered_types_names(types):
-    types_names = ' or '.join([t for t in types if t.lower() not in NOT_TO_MENTION_TYPES])
+    if types == None:
+        return ''
+    else:
+        types_names = ' or '.join([t for t in types if t.lower() not in NOT_TO_MENTION_TYPES])
 
-    return types_names
+        return types_names

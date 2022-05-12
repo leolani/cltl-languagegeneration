@@ -31,12 +31,12 @@ class UCB(ThoughtSelector):
 
         returns: UCB object
         """
-        self.__Q = dict()
-        self.__N = dict()
+        self._Q = dict()
+        self._N = dict()
 
-        self.__t = 1
-        self.__c = c
-        self.__decay = c / tmax
+        self._t = 1
+        self._c = c
+        self._decay = c / tmax
 
     # Utils
 
@@ -57,13 +57,13 @@ class UCB(ThoughtSelector):
 
         with open(filename, "r") as file:
             data = json.load(file)
-            self.__c = data["metadata"]["c"]
-            self.__t = data["metadata"]["t"]
-            self.__decay = data["metadata"]["decay"]
+            self._c = data["metadata"]["c"]
+            self._t = data["metadata"]["t"]
+            self._decay = data["metadata"]["decay"]
 
             for action, values in data["data"].items():
-                self.__Q[action] = values["value"]
-                self.__N[action] = values["count"]
+                self._Q[action] = values["value"]
+                self._N[action] = values["count"]
 
     def save(self, filename):
         """Writes the value and uncertainty tables to a JSON file.
@@ -75,16 +75,16 @@ class UCB(ThoughtSelector):
         """
         # Format metadata (c, t, decay) and value estimates as JSON.
         data = {
-            "metadata": {"c": self.__c, "t": self.__t, "decay": self.__decay},
+            "metadata": {"c": self._c, "t": self._t, "decay": self._decay},
             "data": dict(),
         }
 
-        for action in self.__Q.keys():
-            if self.__N[action] > 0:
+        for action in self._Q.keys():
+            if self._N[action] > 0:
                 data["data"][action] = {
-                    "value": self.__Q[action],
-                    "count": self.__N[action],
-                    "uncertainty": self.__uncertainty(action),
+                    "value": self._Q[action],
+                    "count": self._N[action],
+                    "uncertainty": self._uncertainty(action),
                 }
         # Write to file
         with open(filename, "w") as file:
@@ -92,7 +92,7 @@ class UCB(ThoughtSelector):
 
     # Learning
 
-    def __uncertainty(self, action):
+    def _uncertainty(self, action):
         """Computes the uncertainty associated with the current action
         as the upper confidence bound of the current average.
 
@@ -101,7 +101,7 @@ class UCB(ThoughtSelector):
 
         returns:    UCB score of the action
         """
-        return self.__c * np.sqrt(np.log(self.__t) / self.__N[action])
+        return self._c * np.sqrt(np.log(self._t) / self._N[action])
 
     def select(self, actions):
         """Selects an action from the set of available actions that maximizes
@@ -120,15 +120,15 @@ class UCB(ThoughtSelector):
             for elem in action.split():
 
                 # Add unseen elements to table
-                if elem not in self.__Q:
-                    self.__Q[elem] = 0
-                    self.__N[elem] = 0
+                if elem not in self._Q:
+                    self._Q[elem] = 0
+                    self._N[elem] = 0
 
                 # Score action
-                if self.__N[elem] == 0:
+                if self._N[elem] == 0:
                     score += [np.inf]  # ensures all actions are sampled at least once
                 else:
-                    score += [self.__Q[elem] + self.__uncertainty(elem)]
+                    score += [self._Q[elem] + self._uncertainty(elem)]
 
             # Convert element-scores into action score
             action_scores.append((action, np.mean(score)))
@@ -149,12 +149,12 @@ class UCB(ThoughtSelector):
         """
         # Update value estimates
         for elem in action.split():
-            self.__N[elem] += 1
-            self.__Q[elem] = self.__Q[elem] + (reward - self.__Q[elem]) / self.__N[elem]
+            self._N[elem] += 1
+            self._Q[elem] = self._Q[elem] + (reward - self._Q[elem]) / self._N[elem]
 
         # Update exploration constant
-        self.__t += 1
-        self.__c = max(self.__c - self.__decay, 0)
+        self._t += 1
+        self._c = max(self._c - self._decay, 0)
 
     # Plotting
 
@@ -167,29 +167,29 @@ class UCB(ThoughtSelector):
 
         returns: None
         """
-        total_rewards = sum(self.__N.values())  # empty value table?
+        total_rewards = sum(self._N.values())  # empty value table?
         if total_rewards == 0:
             print("WARNING Cannot plot empty value table")
             return
 
         # Estimate value/uncertainty of actions
         a, q, u = [], [], []
-        for action in sorted(list(self.__Q.keys())):
-            if self.__N[action] > 0:
+        for action in sorted(list(self._Q.keys())):
+            if self._N[action] > 0:
                 a += [action]
-                q += [self.__Q[action]]
-                u += [self.__uncertainty(action)]
+                q += [self._Q[action]]
+                u += [self._uncertainty(action)]
 
         # Reduce number of bars if > max_bars
         if len(a) > max_bars:
-            idx = random.sample(range(len(a)), max_bars)
+            idx = random.sample(range(len(a)), max_bars) # TODO: Top not random
             a = [a[i] for i in idx]
             q = list(np.array(q)[idx])
             u = list(np.array(u)[idx])
 
         # Draw barplots for U and Q
         fig = plt.figure(figsize=(10, 5), tight_layout=True)
-        plt.suptitle("$t=${}, $c=${}".format(self.__t, round(self.__c, 3)))
+        plt.suptitle("$t=${}, $c=${}".format(self._t, round(self._c, 3)))
 
         plt.subplot(1, 2, 1)
         plt.ylabel("$Uncertainty$ $(U)$")
