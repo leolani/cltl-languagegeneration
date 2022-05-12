@@ -24,7 +24,6 @@ setup(
     package_data={'cltl.reply_generation': []},
     python_requires='>=3.7',
     install_requires=[
-        'nltk~=3.4.4',
         'tqdm~=4.62',
         'matplotlib~=3.4',
         "cltl.combot"
