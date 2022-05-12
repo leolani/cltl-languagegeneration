@@ -6,7 +6,7 @@
     Date created: Nov. 11th, 2021
 """
 
-from cltl.reply_generation.commons.casefolding import (casefold_capsule)
+from cltl.commons.casefolding import (casefold_capsule)
 from cltl.reply_generation.lenka_replier import LenkaReplier
 from cltl.reply_generation.reinforcement_learning.rl import UCB
 from cltl.reply_generation.utils.replier_utils import thoughts_from_brain
