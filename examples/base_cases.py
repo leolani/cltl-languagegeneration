@@ -3,7 +3,7 @@ import json
 from tqdm import tqdm
 
 # Read scenario from file
-scenario_file_name = 'base-case-responses.json'
+scenario_file_name = 'basic-statements-responses.json'
 scenario_json_file = './data/' + scenario_file_name
 
 f = open(scenario_json_file, )

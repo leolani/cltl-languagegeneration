@@ -157,11 +157,11 @@ class LenkaReplier(BasicReplier):
 
         """
         # Quick check if there is anything to do here
-        utterance = brain_response['statement']
-        if utterance['triple'] is None:
+        if 'statement' not in brain_response.keys() or brain_response['statement']['triple'] is None:
             return None
 
         # What types of thoughts will we phrase?
+        utterance = brain_response['statement']
         if entity_only:
             options = ['_entity_novelty', '_subject_gaps', '_complement_gaps']
         else:
