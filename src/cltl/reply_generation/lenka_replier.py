@@ -32,41 +32,22 @@ class LenkaReplier(BasicReplier):
         self._log.debug(f"Random Selector ready")
 
     def reply_to_question(self, brain_response):
+        if not brain_response['response']:
+            return self._phrase_no_answer_to_question(brain_response['question'])
+
+        # TODO revise (we conjugate the predicate by doing this)
+        utterance = casefold_capsule(brain_response['question'], format='natural')
+
+        # Each triple is hashed, so we can figure out when we are about the say things double
+        handled_items = set()
+        brain_response['response'].sort(key=lambda x: x['authorlabel']['value'])
+
         say = ''
         previous_author = ''
         previous_predicate = ''
         gram_person = ''
         gram_number = ''
-
-        utterance = brain_response['question']
-        response = brain_response['response']
-
-        # TODO revise (we conjugate the predicate by doing this)
-        utterance = casefold_capsule(utterance, format='natural')
-
-        if not response:
-            self._log.info(f"Empty response")
-            subject_types = filtered_types_names(utterance['subject']['type']) \
-                if utterance['subject']['type'] is not None else ''
-            object_types = filtered_types_names(utterance['object']['type']) \
-                if utterance['object']['type'] is not None else ''
-
-            if subject_types and object_types and utterance['predicate']['label']:
-                say += "I know %s usually %s %s, but I do not know this case" % (
-                    random.choice(utterance['subject']['type']),
-                    str(utterance['predicate']['label']),
-                    random.choice(utterance['object']['type']))
-                return say
-
-            else:
-                return random.choice(NO_ANSWER)
-
-        # Each triple is hashed, so we can figure out when we are about the say things double
-        handled_items = set()
-        response.sort(key=lambda x: x['authorlabel']['value'])
-
-        for item in response:
-
+        for item in brain_response['response']:
             # INITIALIZATION
             subject, predicate, object = self._assign_spo(utterance, item)
 
@@ -137,9 +118,26 @@ class LenkaReplier(BasicReplier):
 
             say += ' and '
 
+        # Remove last ' and' and return
         say = say[:-5]
-
         return say.replace('-', ' ').replace('  ', ' ')
+
+    def _phrase_no_answer_to_question(self, utterance):
+        self._log.info(f"Empty response")
+        subject_types = filtered_types_names(utterance['subject']['type']) \
+            if utterance['subject']['type'] is not None else ''
+        object_types = filtered_types_names(utterance['object']['type']) \
+            if utterance['object']['type'] is not None else ''
+
+        if subject_types and object_types and utterance['predicate']['label']:
+            say = "I know %s usually %s %s, but I do not know this case" % (
+                random.choice(utterance['subject']['type']),
+                str(utterance['predicate']['label']),
+                random.choice(utterance['object']['type']))
+            return say
+
+        else:
+            return random.choice(NO_ANSWER)
 
     def reply_to_statement(self, brain_response, entity_only=False, proactive=True, persist=False):
         """
