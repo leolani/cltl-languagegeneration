@@ -79,14 +79,14 @@ def thoughts_from_brain(brain_response):
     # Any entity novelties?
     if cap["_entity_novelty"]["_subject"] == "True":
         novelty_name = (
-            "entity_novelty -subj %s" % utt["triple"]["_subject"]["_types"][0]
+                "entity_novelty -subj %s" % utt["triple"]["_subject"]["_types"][0]
         )
         novelty_info = {"_subject": True, "_complement": False}
         thoughts[novelty_name] = ("_entity_novelty", novelty_info)
 
     if cap["_entity_novelty"]["_complement"] == "True":
         novelty_name = (
-            "entity_novelty -compl %s" % utt["triple"]["_complement"]["_types"][0]
+                "entity_novelty -compl %s" % utt["triple"]["_complement"]["_types"][0]
         )
         novelty_info = {"_subject": False, "_complement": True}
         thoughts[novelty_name] = ("_entity_novelty", novelty_info)
@@ -151,20 +151,21 @@ def thoughts_from_brain(brain_response):
         )
 
     # A negation conflict?
-    positives = [
-        item
-        for item in cap["_negation_conflicts"]
-        if item["_polarity_value"] == "POSITIVE"
-    ]
-    negatives = [
-        item
-        for item in cap["_negation_conflicts"]
-        if item["_polarity_value"] == "NEGATIVE"
-    ]
+    if cap["_negation_conflicts"]:
+        positives = [
+            item
+            for item in cap["_negation_conflicts"]
+            if item["_polarity_value"] == "POSITIVE"
+        ]
+        negatives = [
+            item
+            for item in cap["_negation_conflicts"]
+            if item["_polarity_value"] == "NEGATIVE"
+        ]
 
-    if positives and negatives:
-        conflict_info = [random.choice(positives), random.choice(negatives)]
-        thoughts["negation_conflict"] = ("_negation_conflicts", conflict_info)
+        if positives and negatives:
+            conflict_info = [random.choice(positives), random.choice(negatives)]
+            thoughts["negation_conflict"] = ("_negation_conflicts", conflict_info)
 
     # Scramble to break ordering!
     thoughts = list(thoughts.items())
