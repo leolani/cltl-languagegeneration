@@ -51,12 +51,12 @@ class LenkaReplier(BasicReplier):
             # INITIALIZATION
             subject, predicate, object = self._assign_spo(utterance, item)
 
-            author = self._replace_pronouns(utterance['author'], author=item['authorlabel']['value'])
-            subject = self._replace_pronouns(utterance['author'], entity_label=subject, role='subject')
-            object = self._replace_pronouns(utterance['author'], entity_label=object, role='object')
+            author = self._replace_pronouns(utterance['author']['label'], author=item['authorlabel']['value'])
+            subject = self._replace_pronouns(utterance['author']['label'], entity_label=subject, role='subject')
+            object = self._replace_pronouns(utterance['author']['label'], entity_label=object, role='object')
 
-            subject = self._fix_entity(subject, utterance['author'])
-            object = self._fix_entity(object, utterance['author'])
+            subject = self._fix_entity(subject, utterance['author']['label'])
+            object = self._fix_entity(object, utterance['author']['label'])
 
             # Hash item such that duplicate entries have the same hash
             item_hash = '{}_{}_{}_{}'.format(subject, predicate, object, author)
@@ -81,8 +81,8 @@ class LenkaReplier(BasicReplier):
             if predicate.endswith('is'):
 
                 say += object + ' is'
-                if utterance['object']['label'].lower() == utterance['author'].lower() or \
-                        utterance['subject']['label'].lower() == utterance['author'].lower():
+                if utterance['object']['label'].lower() == utterance['author']['label'].lower() or \
+                        utterance['subject']['label'].lower() == utterance['author']['label'].lower():
                     say += ' your '
                 elif utterance['object']['label'].lower() == 'leolani' or \
                         utterance['subject']['label'].lower() == 'leolani':
@@ -233,7 +233,7 @@ class LenkaReplier(BasicReplier):
         else:
             say = random.choice(CONFLICTING_KNOWLEDGE)
             conflict = random.choice(conflicts)
-            x = 'you' if conflict['_provenance']['_author']['_label'] == utterance['author'] \
+            x = 'you' if conflict['_provenance']['_author']['_label'] == utterance['author']['label'] \
                 else conflict['_provenance']['_author']['_label']
             y = 'you' if utterance['triple']['_subject']['_label'] == conflict['_provenance']['_author']['_label'] \
                 else utterance['triple']['_subject']['_label']
@@ -323,12 +323,12 @@ class LenkaReplier(BasicReplier):
         novelty = novelties['_subject'] if entity_role == 'subject' else novelties['_complement']
 
         if novelty:
-            entity_label = self._replace_pronouns(utterance['author'], entity_label=entity_label,
+            entity_label = self._replace_pronouns(utterance['author']['label'], entity_label=entity_label,
                                                   role=entity_role)
             say = random.choice(NEW_KNOWLEDGE)
             if entity_label != 'you':  # TODO or type person?
                 # Checked
-                say += ' I had never heard about %s before!' % self._replace_pronouns(utterance['author'],
+                say += ' I had never heard about %s before!' % self._replace_pronouns(utterance['author']['label'],
                                                                                       entity_label=entity_label,
                                                                                       role='object')
             else:
@@ -338,7 +338,7 @@ class LenkaReplier(BasicReplier):
             say = random.choice(EXISTING_KNOWLEDGE)
             if entity_label != 'you':
                 # Checked
-                say += ' I have heard about %s before' % self._replace_pronouns(utterance['author'],
+                say += ' I have heard about %s before' % self._replace_pronouns(utterance['author']['label'],
                                                                                 entity_label=entity_label,
                                                                                 role='object')
             else:
