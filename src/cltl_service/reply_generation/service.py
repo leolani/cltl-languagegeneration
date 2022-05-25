@@ -64,13 +64,16 @@ class ReplyGenerationService:
             try:
                 brain_response = brain_response_to_json(brain_response)
                 for replier in self._repliers:
-                    reply = replier.reply_to_statement(brain_response)
+                    reply = None
+                    if 'statement' in brain_response:
+                        reply = replier.reply_to_statement(brain_response)
+                    elif 'question' in brain_response:
+                        reply = replier.reply_to_question(brain_response)
                     if reply:
+                        reply_list.append(reply)
                         break
-
-                reply_list.append(reply)
             except:
-                logger.exception("Replier error")
+                logger.exception("Replier error on brain response %s", brain_response)
 
         response = '. '.join(reply_list)
 
