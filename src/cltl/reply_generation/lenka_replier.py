@@ -358,8 +358,9 @@ class LenkaReplier(BasicReplier):
             say = random.choice(CURIOSITY)
 
             if not gaps:
-                say += ' What types can %s %s' % (utterance['triple']['_subject']['_label'],
-                                                  utterance['triple']['_predicate']['_label'])
+                pass
+                # say += ' What types can %s %s' % (utterance['triple']['_subject']['_label'],
+                #                                   utterance['triple']['_predicate']['_label'])
 
             else:
                 gap = random.choice(gaps)
@@ -386,9 +387,10 @@ class LenkaReplier(BasicReplier):
             say = random.choice(CURIOSITY)
 
             if not gaps:
-                say += ' What kinds of things can %s a %s like %s' % (utterance['triple']['_predicate']['_label'],
-                                                                      utterance['triple']['_complement']['_label'],
-                                                                      utterance['triple']['_subject']['_label'])
+                pass
+                # say += ' What kinds of things can %s a %s like %s' % (utterance['triple']['_predicate']['_label'],
+                #                                                       utterance['triple']['_complement']['_label'],
+                #                                                       utterance['triple']['_subject']['_label'])
 
             else:
                 gap = random.choice(gaps)
@@ -422,9 +424,10 @@ class LenkaReplier(BasicReplier):
             say = random.choice(CURIOSITY)
 
             if not gaps:
+                pass
                 # Checked
-                say += ' What types can %s %s' % (utterance['triple']['_subject']['_label'],
-                                                  utterance['triple']['_predicate']['_label'])
+                # say += ' What types can %s %s' % (utterance['triple']['_subject']['_label'],
+                #                                   utterance['triple']['_predicate']['_label'])
 
             else:
                 gap = random.choice(gaps)  # TODO Lenka/Suzanna improve logic here
@@ -441,14 +444,15 @@ class LenkaReplier(BasicReplier):
             say = random.choice(CURIOSITY)
 
             if not gaps:
-                otypes = filtered_types_names(utterance['triple']['_complement']['_types'])
-                otypes = otypes if otypes != '' else 'things'
-                stypes = filtered_types_names(utterance['triple']['_subject']['_types'])
-                stypes = stypes if stypes != '' else 'actors'
-                say += ' What types of %s like %s do %s usually %s' % (otypes,
-                                                                       utterance['triple']['_complement']['_label'],
-                                                                       stypes,
-                                                                       utterance['triple']['_predicate']['_label'])
+                pass
+                # otypes = filtered_types_names(utterance['triple']['_complement']['_types'])
+                # otypes = otypes if otypes != '' else 'things'
+                # stypes = filtered_types_names(utterance['triple']['_subject']['_types'])
+                # stypes = stypes if stypes != '' else 'actors'
+                # say += ' What types of %s like %s do %s usually %s' % (otypes,
+                #                                                        utterance['triple']['_complement']['_label'],
+                #                                                        stypes,
+                #                                                        utterance['triple']['_predicate']['_label'])
 
             else:
                 gap = random.choice(gaps)
@@ -475,7 +479,7 @@ class LenkaReplier(BasicReplier):
         say = None
 
         if not overlaps:
-            say = None
+            pass
 
         elif len(overlaps) < 2 and entity_role == 'subject':
             say = random.choice(HAPPY)

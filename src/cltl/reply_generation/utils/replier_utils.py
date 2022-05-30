@@ -41,40 +41,44 @@ def thoughts_from_brain(brain_response):
         )
 
     # Any single overlap?, e.g. 'overlap animal'
-    for overlap in cap["_overlaps"]["_subject"]:
-        overlap_name = "overlap -subj %s" % overlap["_entity"]["_types"][-1]
-        thoughts[overlap_name] = (
-            "_overlaps",
-            {"_subject": [overlap], "_complement": []},
-        )
+    if cap["_overlaps"]["_subject"]:
+        for overlap in cap["_overlaps"]["_subject"]:
+            overlap_name = "overlap -subj %s" % overlap["_entity"]["_types"][-1]
+            thoughts[overlap_name] = (
+                "_overlaps",
+                {"_subject": [overlap], "_complement": []},
+            )
 
-    for overlap in cap["_overlaps"]["_complement"]:
-        overlap_name = "overlap -compl %s" % overlap["_entity"]["_types"][-1]
-        thoughts[overlap_name] = (
-            "_overlaps",
-            {"_subject": [], "_complement": [overlap]},
-        )
+    if cap["_overlaps"]["_complement"]:
+        for overlap in cap["_overlaps"]["_complement"]:
+            overlap_name = "overlap -compl %s" % overlap["_entity"]["_types"][-1]
+            thoughts[overlap_name] = (
+                "_overlaps",
+                {"_subject": [], "_complement": [overlap]},
+            )
 
     # Any pairs of overlaps?, e.g. 'overlap animal person'
-    for overlaps in combinations(cap["_overlaps"]["_subject"], r=2):
-        entities = sorted(
-            [overlaps[0]["_entity"]["_types"][-1], overlaps[1]["_entity"]["_types"][-1]]
-        )
-        overlap_name = "overlap -subj %s %s" % (entities[0], entities[1])
-        thoughts[overlap_name] = (
-            "_overlaps",
-            {"_subject": overlaps, "_complement": []},
-        )
+    if cap["_overlaps"]["_subject"]:
+        for overlaps in combinations(cap["_overlaps"]["_subject"], r=2):
+            entities = sorted(
+                [overlaps[0]["_entity"]["_types"][-1], overlaps[1]["_entity"]["_types"][-1]]
+            )
+            overlap_name = "overlap -subj %s %s" % (entities[0], entities[1])
+            thoughts[overlap_name] = (
+                "_overlaps",
+                {"_subject": overlaps, "_complement": []},
+            )
 
-    for overlaps in combinations(cap["_overlaps"]["_complement"], r=2):
-        entities = sorted(
-            [overlaps[0]["_entity"]["_types"][-1], overlaps[1]["_entity"]["_types"][-1]]
-        )
-        overlap_name = "overlap -compl %s %s" % (entities[0], entities[1])
-        thoughts[overlap_name] = (
-            "_overlaps",
-            {"_subject": [], "_complement": overlaps},
-        )
+    if cap["_overlaps"]["_complement"]:
+        for overlaps in combinations(cap["_overlaps"]["_complement"], r=2):
+            entities = sorted(
+                [overlaps[0]["_entity"]["_types"][-1], overlaps[1]["_entity"]["_types"][-1]]
+            )
+            overlap_name = "overlap -compl %s %s" % (entities[0], entities[1])
+            thoughts[overlap_name] = (
+                "_overlaps",
+                {"_subject": [], "_complement": overlaps},
+            )
 
     # Any entity novelties?
     if cap["_entity_novelty"]["_subject"] == "True":
@@ -96,19 +100,21 @@ def thoughts_from_brain(brain_response):
     thoughts["entity_novelty -none"] = ("_entity_novelty", novelty_info)
 
     # Any subject gaps?, e.g. 'subject_gap person animal'
-    for gap in cap["_subject_gaps"]["_subject"]:
-        gap_name = "subject_gap -subj %s %s" % (
-            utt["triple"]["_subject"]["_types"][0],
-            gap["_entity"]["_types"][-1],
-        )
-        thoughts[gap_name] = ("_subject_gaps", {"_subject": [gap], "_complement": []})
+    if cap["_subject_gaps"]["_subject"]:
+        for gap in cap["_subject_gaps"]["_subject"]:
+            gap_name = "subject_gap -subj %s %s" % (
+                utt["triple"]["_subject"]["_types"][0],
+                gap["_entity"]["_types"][-1],
+            )
+            thoughts[gap_name] = ("_subject_gaps", {"_subject": [gap], "_complement": []})
 
-    for gap in cap["_subject_gaps"]["_complement"]:
-        gap_name = "subject_gap -compl %s %s" % (
-            utt["triple"]["_subject"]["_types"][0],
-            gap["_entity"]["_types"][-1],
-        )
-        thoughts[gap_name] = ("_subject_gaps", {"_subject": [], "_complement": [gap]})
+    if cap["_subject_gaps"]["_complement"]:
+        for gap in cap["_subject_gaps"]["_complement"]:
+            gap_name = "subject_gap -compl %s %s" % (
+                utt["triple"]["_subject"]["_types"][0],
+                gap["_entity"]["_types"][-1],
+            )
+            thoughts[gap_name] = ("_subject_gaps", {"_subject": [], "_complement": [gap]})
 
     # Alternative, if there is no subject gap
     thoughts["subject_gap -none"] = (
@@ -117,25 +123,27 @@ def thoughts_from_brain(brain_response):
     )
 
     # any object gaps?, e.g. 'object_gap person animal'
-    for gap in cap["_complement_gaps"]["_subject"]:
-        gap_name = "object_gap -subj %s %s" % (
-            utt["triple"]["_complement"]["_types"][0],
-            gap["_entity"]["_types"][-1],
-        )
-        thoughts[gap_name] = (
-            "_complement_gaps",
-            {"_subject": [gap], "_complement": []},
-        )
+    if cap["_subject_gaps"]["_subject"]:
+        for gap in cap["_complement_gaps"]["_subject"]:
+            gap_name = "object_gap -subj %s %s" % (
+                utt["triple"]["_complement"]["_types"][0],
+                gap["_entity"]["_types"][-1],
+            )
+            thoughts[gap_name] = (
+                "_complement_gaps",
+                {"_subject": [gap], "_complement": []},
+            )
 
-    for gap in cap["_complement_gaps"]["_complement"]:
-        gap_name = "object_gap -compl %s %s" % (
-            utt["triple"]["_complement"]["_types"][0],
-            gap["_entity"]["_types"][-1],
-        )
-        thoughts[gap_name] = (
-            "_complement_gaps",
-            {"_subject": [], "_complement": [gap]},
-        )
+    if cap["_subject_gaps"]["_complement"]:
+        for gap in cap["_complement_gaps"]["_complement"]:
+            gap_name = "object_gap -compl %s %s" % (
+                utt["triple"]["_complement"]["_types"][0],
+                gap["_entity"]["_types"][-1],
+            )
+            thoughts[gap_name] = (
+                "_complement_gaps",
+                {"_subject": [], "_complement": [gap]},
+            )
 
     # Alternative, if there is no object gap
     thoughts["object_gap -none"] = (

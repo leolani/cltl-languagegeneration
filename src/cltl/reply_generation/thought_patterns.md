@@ -1,0 +1,53 @@
+- Check all patterns (33)
+    - [ ] _complement_conflict (2)
+        - [ ] no conflict: say = None 
+        - [ ] many conflicts
+    - [ ] _negation_conflicts (2)
+        - [ ] no conflict: say = None  
+        - [ ] many conflicts
+    - [ ] _statement_novelty (3) 
+        - [ ] new fact
+            - [ ] subject centric
+            - [ ] object centric
+        - [ ] known fact
+    - [ ] _entity_novelty (4)
+        - [ ] new entity
+            - [ ] any entity
+            - [ ] speaker
+        - [ ] known entity
+            - [ ] any entity
+            - [ ] speaker
+    - [ ] _subject_gaps (9)
+        - [ ] subject centric
+            - [ ] no gaps (probably delete this! confusing)
+            - [ ] many gaps
+                - [ ] 'is' in predicate
+                - [ ] 'of' in predicate
+                - [ ] ' ' in predicate
+                - [ ] general
+        - [ ] object centric
+            - [ ] no gaps (probably delete this! confusing)
+            - [ ] many gaps
+                - [ ] '#' in predicate
+                - [ ] ' ' in predicate
+                - [ ] general
+    - [ ] _complement_gaps (7)
+        - [ ] subject centric
+            - [ ] no gaps (probably delete this! confusing)
+            - [ ] many gaps
+                - [ ] 'in' in predicate
+                - [ ] general
+        - [ ] object centric
+            - [ ] no gaps (probably delete this! confusing)
+            - [ ] many gaps
+                - [ ] '#' in predicate
+                - [ ] 'by' in predicate
+                - [ ] general
+    - [ ] _overlaps (4)
+        - [ ] no overlaps: say = None 
+        - [ ] one overlap
+        - [ ] subject centric
+        - [ ] object centric
+    - [ ] _trust (2)
+        - [ ] no trust
+        - [ ] trustworthy
