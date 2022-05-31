@@ -1,5 +1,5 @@
 import logging
-from typing import List
+from typing import List, Iterable
 
 from cltl.brain.utils.helper_functions import brain_response_to_json
 from cltl.combot.event.emissor import TextSignalEvent
@@ -24,9 +24,12 @@ class ReplyGenerationService:
                     config_manager: ConfigurationManager):
         config = config_manager.get_config("cltl.reply_generation")
 
-        return cls(config.get("topic_input"), config.get("topic_output"), repliers, emissor_data, event_bus, resource_manager)
+        return cls(config.get("topic_input"), config.get("topic_output"),
+                   config.get("intentions", multi=True), config.get("topic_intention"),
+                   repliers, emissor_data, event_bus, resource_manager)
 
-    def __init__(self, input_topic: str, output_topic: str, repliers: List[BasicReplier], emissor_data: EmissorDataClient,
+    def __init__(self, input_topic: str, output_topic: str, intentions: Iterable[str], intention_topic: str,
+                 repliers: List[BasicReplier], emissor_data: EmissorDataClient,
                  event_bus: EventBus, resource_manager: ResourceManager):
         self._repliers = repliers
 
@@ -36,6 +39,8 @@ class ReplyGenerationService:
 
         self._input_topic = input_topic
         self._output_topic = output_topic
+        self._intentions = intentions
+        self._intention_topic = intention_topic
 
         self._topic_worker = None
 
@@ -46,6 +51,7 @@ class ReplyGenerationService:
     def start(self, timeout=30):
         self._topic_worker = TopicWorker([self._input_topic], self._event_bus, provides=[self._output_topic],
                                          resource_manager=self._resource_manager, processor=self._process,
+                                         intentions=self._intentions, intention_topic = self._intention_topic,
                                          name=self.__class__.__name__)
         self._topic_worker.start().wait()
 
