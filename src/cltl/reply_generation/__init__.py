@@ -13,5 +13,3 @@ logging.basicConfig(level=getattr(logging, LOG_LEVEL),
                     format=LOG_FORMAT,
                     datefmt=LOG_DATEFMT)
 logger = logging.getLogger(__name__)
-
-from cltl.reply_generation.lenka_replier import LenkaReplier

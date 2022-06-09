@@ -225,9 +225,9 @@ class LenkaReplier(BasicReplier):
     def _phrase_cardinality_conflicts(conflicts, utterance):
         # type: (list[dict], dict) -> Optional[str]
 
-        # There is no conflict, so nothing
+        # There is no conflict, so no response
         if not conflicts:
-            say = None
+            return None
 
         # There is a conflict, so we phrase it
         else:
@@ -244,16 +244,18 @@ class LenkaReplier(BasicReplier):
                       conflict['_complement']['_label'],
                       y, utterance['triple']['_predicate']['_label'], utterance['triple']['_complement']['_label'])
 
-        return say
+            return say
 
     @staticmethod
     def _phrase_negation_conflicts(conflicts, utterance):
         # type: (list[dict], dict) -> Optional[str]
 
-        say = None
+        # There is no conflict, so no response
+        if not conflicts or len(conflicts) < 2:
+            return None
 
         # There is conflict entries
-        if conflicts and conflicts[0]:
+        else:
             affirmative_conflict = [item for item in conflicts if item['_polarity_value'] == 'POSITIVE']
             negative_conflict = [item for item in conflicts if item['_polarity_value'] == 'NEGATIVE']
 
@@ -274,11 +276,11 @@ class LenkaReplier(BasicReplier):
                           utterance['triple']['_subject']['_label'], utterance['triple']['_predicate']['_label'],
                           utterance['triple']['_complement']['_label'])
 
-        return say
+                return say
 
     @staticmethod
     def _phrase_statement_novelty(novelties, utterance):
-        # type: (list[dict], dict) -> str
+        # type: (list[dict], dict) -> Optional[str]
 
         # I do not know this before, so be happy to learn
         if not novelties:
@@ -315,7 +317,11 @@ class LenkaReplier(BasicReplier):
         return say
 
     def _phrase_type_novelty(self, novelties, utterance):
-        # type: (dict, dict) -> str
+        # type: (dict, dict) -> Optional[str]
+
+        # There is no novelty information, so no response
+        if not novelties:
+            return None
 
         entity_role = random.choice(['subject', 'object'])
         entity_label = utterance['triple']['_subject']['_label'] \
@@ -350,6 +356,11 @@ class LenkaReplier(BasicReplier):
     def _phrase_subject_gaps(all_gaps, utterance):
         # type: (dict, dict) -> Optional[str]
 
+        # There is no gaps, so no response
+        if not all_gaps:
+            return None
+
+        # random choice between object or subject
         entity_role = random.choice(['subject', 'object'])
         gaps = all_gaps['_subject'] if entity_role == 'subject' else all_gaps['_complement']
         say = None
@@ -415,6 +426,10 @@ class LenkaReplier(BasicReplier):
     def _phrase_complement_gaps(all_gaps, utterance):
         # type: (dict, dict) -> Optional[str]
 
+        # There is no gaps, so no response
+        if not all_gaps:
+            return None
+
         # random choice between object or subject
         entity_role = random.choice(['subject', 'object'])
         gaps = all_gaps['_subject'] if entity_role == 'subject' else all_gaps['_complement']
@@ -474,6 +489,9 @@ class LenkaReplier(BasicReplier):
     def _phrase_overlaps(all_overlaps, utterance):
         # type: (dict, dict) -> Optional[str]
 
+        if not all_overlaps:
+            pass
+
         entity_role = random.choice(['subject', 'object'])
         overlaps = all_overlaps['_subject'] if entity_role == 'subject' else all_overlaps['_complement']
         say = None
@@ -521,9 +539,12 @@ class LenkaReplier(BasicReplier):
 
     @staticmethod
     def _phrase_trust(trust):
-        # type: (float) -> str
+        # type: (float) -> Optional[str]
 
-        if float(trust) > 0.75:
+        if not trust:
+            return None
+
+        elif float(trust) > 0.75:
             say = random.choice(TRUST)
         else:
             say = random.choice(NO_TRUST)
