@@ -91,4 +91,4 @@ class ReplyGenerationService:
         scenario_id = self._emissor_data.get_current_scenario_id()
         signal = TextSignal.for_scenario(scenario_id, timestamp_now(), timestamp_now(), None, response)
 
-        return TextSignalEvent.create(signal)
+        return TextSignalEvent.for_agent(signal)
