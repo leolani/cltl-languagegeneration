@@ -81,7 +81,7 @@ class ReplyGenerationService:
             except:
                 logger.exception("Replier error on brain response %s", brain_response)
 
-        response = '. '.join(reply_list)
+        response = '. '.join(set(reply_list))
 
         if response:
             extractor_event = self._create_payload(response)
