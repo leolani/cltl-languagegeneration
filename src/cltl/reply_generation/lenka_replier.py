@@ -186,31 +186,32 @@ class LenkaReplier(BasicReplier):
 
         return reply
 
-    def phrase_correct_thought(self, utterance, thought_type, thought_info, fallback=False):
+    def phrase_correct_thought(self, utterance, thought_type, thought_info, fallback=True):
         reply = None
-        if thought_type == "_complement_conflict":
-            reply = self._phrase_cardinality_conflicts(thought_info, utterance)
+        if thought_info:
+            if thought_type == "_complement_conflict":
+                reply = self._phrase_cardinality_conflicts(thought_info, utterance)
 
-        elif thought_type == "_negation_conflicts":
-            reply = self._phrase_negation_conflicts(thought_info, utterance)
+            elif thought_type == "_negation_conflicts":
+                reply = self._phrase_negation_conflicts(thought_info, utterance)
 
-        elif thought_type == "_statement_novelty":
-            reply = self._phrase_statement_novelty(thought_info, utterance)
+            elif thought_type == "_statement_novelty":
+                reply = self._phrase_statement_novelty(thought_info, utterance)
 
-        elif thought_type == "_entity_novelty":
-            reply = self._phrase_type_novelty(thought_info, utterance)
+            elif thought_type == "_entity_novelty":
+                reply = self._phrase_type_novelty(thought_info, utterance)
 
-        elif thought_type == "_complement_gaps":
-            reply = self._phrase_complement_gaps(thought_info, utterance)
+            elif thought_type == "_complement_gaps":
+                reply = self._phrase_complement_gaps(thought_info, utterance)
 
-        elif thought_type == "_subject_gaps":
-            reply = self._phrase_subject_gaps(thought_info, utterance)
+            elif thought_type == "_subject_gaps":
+                reply = self._phrase_subject_gaps(thought_info, utterance)
 
-        elif thought_type == "_overlaps":
-            reply = self._phrase_overlaps(thought_info, utterance)
+            elif thought_type == "_overlaps":
+                reply = self._phrase_overlaps(thought_info, utterance)
 
-        elif thought_type == "_trust":
-            reply = self._phrase_trust(thought_info)
+            elif thought_type == "_trust":
+                reply = self._phrase_trust(thought_info)
 
         if fallback and reply is None:  # Fallback strategy
             reply = self._phrase_fallback()
