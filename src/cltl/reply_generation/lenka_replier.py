@@ -580,8 +580,12 @@ class LenkaReplier(BasicReplier):
         return subject, predicate, object
 
     @staticmethod
+    @staticmethod
     def _deal_with_authors(author, previous_author, predicate, previous_predicate, say):
         # Deal with author
+        if not author:
+            author = "someone"
+
         if author != previous_author:
             say += author + ' told me '
             previous_author = author
