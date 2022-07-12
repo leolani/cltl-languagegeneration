@@ -6,7 +6,6 @@ from cltl.commons.language_data.sentences import NEW_KNOWLEDGE, EXISTING_KNOWLED
     CURIOSITY, HAPPY, TRUST, NO_TRUST, NO_ANSWER
 from cltl.commons.language_helpers import lexicon_lookup
 from cltl.commons.triple_helpers import filtered_types_names
-
 from cltl.reply_generation.api import BasicReplier, ThoughtSelector
 
 
@@ -580,7 +579,6 @@ class LenkaReplier(BasicReplier):
 
         return subject, predicate, object
 
-    @staticmethod
     @staticmethod
     def _deal_with_authors(author, previous_author, predicate, previous_predicate, say):
         # Deal with author
