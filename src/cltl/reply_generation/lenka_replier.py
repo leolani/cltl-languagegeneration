@@ -375,27 +375,24 @@ class LenkaReplier(BasicReplier):
 
             if not gaps:
                 pass
-                # say += ' What types can %s %s' % (utterance['triple']['_subject']['_label'],
-                #                                   utterance['triple']['_predicate']['_label'])
-
             else:
                 gap = random.choice(gaps)
                 if 'is ' in gap['_predicate']['_label'] or ' is' in gap['_predicate']['_label']:
                     say += ' Is there a %s that %s %s?' % (filtered_types_names(gap['_entity']['_types']),
                                                            gap['_predicate']['_label'],
-                                                           utterance['triple']['_subject']['_label'])
+                                                           gap['_known_entity']['_label'])
                 elif ' of' in gap['_predicate']['_label']:
                     say += ' Is there a %s that %s is %s?' % (filtered_types_names(gap['_entity']['_types']),
-                                                              utterance['triple']['_subject']['_label'],
+                                                              gap['_known_entity']['_label'],
                                                               gap['_predicate']['_label'])
 
                 elif ' ' in gap['_predicate']['_label']:
                     say += ' Is there a %s that is %s %s?' % (filtered_types_names(gap['_entity']['_types']),
                                                               gap['_predicate']['_label'],
-                                                              utterance['triple']['_subject']['_label'])
+                                                              gap['_known_entity']['_label'])
                 else:
                     # Checked
-                    say += ' Has %s %s %s?' % (utterance['triple']['_subject']['_label'],
+                    say += ' Has %s %s %s?' % (gap['_known_entity']['_label'],
                                                gap['_predicate']['_label'],
                                                filtered_types_names(gap['_entity']['_types']))
 
@@ -404,24 +401,20 @@ class LenkaReplier(BasicReplier):
 
             if not gaps:
                 pass
-                # say += ' What kinds of things can %s a %s like %s' % (utterance['triple']['_predicate']['_label'],
-                #                                                       utterance['triple']['_complement']['_label'],
-                #                                                       utterance['triple']['_subject']['_label'])
-
             else:
                 gap = random.choice(gaps)
                 if '#' in filtered_types_names(gap['_entity']['_types']):
-                    say += ' What is %s %s?' % (utterance['triple']['_subject']['_label'],
+                    say += ' What is %s %s?' % (gap['_known_entity']['_label'],
                                                 gap['_predicate']['_label'])
                 elif ' ' in gap['_predicate']['_label']:
                     # Checked
                     say += ' Has %s ever %s %s?' % (filtered_types_names(gap['_entity']['_types']),
                                                     gap['_predicate']['_label'],
-                                                    utterance['triple']['_subject']['_label'])
+                                                    gap['_known_entity']['_label'])
 
                 else:
                     # Checked
-                    say += ' Has %s ever %s a %s?' % (utterance['triple']['_subject']['_label'],
+                    say += ' Has %s ever %s a %s?' % (gap['_known_entity']['_label'],
                                                       gap['_predicate']['_label'],
                                                       filtered_types_names(gap['_entity']['_types']))
 
@@ -445,18 +438,14 @@ class LenkaReplier(BasicReplier):
 
             if not gaps:
                 pass
-                # Checked
-                # say += ' What types can %s %s' % (utterance['triple']['_subject']['_label'],
-                #                                   utterance['triple']['_predicate']['_label'])
-
             else:
                 gap = random.choice(gaps)  # TODO Lenka/Suzanna improve logic here
                 if ' in' in gap['_predicate']['_label']:  # ' by' in gap['_predicate']['_label']
                     say += ' Is there a %s %s %s?' % (filtered_types_names(gap['_entity']['_types']),
                                                       gap['_predicate']['_label'],
-                                                      utterance['triple']['_complement']['_label'])
+                                                      gap['_known_entity']['_label'])
                 else:
-                    say += ' Has %s %s by a %s?' % (utterance['triple']['_complement']['_label'],
+                    say += ' Has %s %s by a %s?' % (gap['_known_entity']['_label'],
                                                     gap['_predicate']['_label'],
                                                     filtered_types_names(gap['_entity']['_types']))
 
@@ -465,32 +454,23 @@ class LenkaReplier(BasicReplier):
 
             if not gaps:
                 pass
-                # otypes = filtered_types_names(utterance['triple']['_complement']['_types'])
-                # otypes = otypes if otypes != '' else 'things'
-                # stypes = filtered_types_names(utterance['triple']['_subject']['_types'])
-                # stypes = stypes if stypes != '' else 'actors'
-                # say += ' What types of %s like %s do %s usually %s' % (otypes,
-                #                                                        utterance['triple']['_complement']['_label'],
-                #                                                        stypes,
-                #                                                        utterance['triple']['_predicate']['_label'])
-
             else:
                 gap = random.choice(gaps)
                 if '#' in filtered_types_names(gap['_entity']['_types']):
-                    say += ' What is %s %s?' % (utterance['triple']['_complement']['_label'],
+                    say += ' What is %s %s?' % (gap['_known_entity']['_label'],
                                                 gap['_predicate']['_label'])
                 elif ' by' in gap['_predicate']['_label']:
-                    say += ' Has %s ever %s a %s?' % (utterance['triple']['_complement']['_label'],
+                    say += ' Has %s ever %s a %s?' % (gap['_known_entity']['_label'],
                                                       gap['_predicate']['_label'],
                                                       filtered_types_names(gap['_entity']['_types']))
                 else:
                     say += ' Has a %s ever %s %s?' % (filtered_types_names(gap['_entity']['_types']),
                                                       gap['_predicate']['_label'],
-                                                      utterance['triple']['_complement']['_label'])
+                                                      gap['_known_entity']['_label'])
 
         return say
 
-    @staticmethod
+    @staticmethod 
     def _phrase_overlaps(all_overlaps, utterance):
         # type: (dict, dict) -> Optional[str]
 

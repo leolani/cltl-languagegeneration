@@ -22,7 +22,6 @@ Be sure to run in a virtual python environment (e.g. conda, venv, mkvirtualenv, 
 
     ```bash
     pip install -e .
-    python -c "import nltk; nltk.download('wordnet')"
     ```
 
 ### Usage
