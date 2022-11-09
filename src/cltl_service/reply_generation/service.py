@@ -72,11 +72,11 @@ class ReplyGenerationService:
                 for replier in self._repliers:
                     reply = None
                     if 'statement' in brain_response:
-                        reply = replier.reply_to_statement(brain_response, proactive=True)
+                        reply = replier.reply_to_statement(brain_response, persist=True)
                     elif 'question' in brain_response:
                         reply = replier.reply_to_question(brain_response)
                     elif 'mention' in brain_response:
-                        reply = replier.reply_to_statement(brain_response, entity_only=True, proactive=True)
+                        reply = replier.reply_to_statement(brain_response, entity_only=True, persist=True)
                     if reply:
                         reply_list.append(reply)
                         break
