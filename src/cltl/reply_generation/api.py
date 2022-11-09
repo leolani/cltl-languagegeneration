@@ -7,6 +7,12 @@ class ThoughtSelector(object):
         raise NotImplementedError()
 
 
+class Phraser(object):
+
+    def phrase_correct_thought(self, utterance, thought_type, thought_info, fallback=True):
+        raise NotImplementedError()
+
+
 class BasicReplier(object):
 
     def __init__(self):

@@ -7,9 +7,11 @@
 """
 
 from cltl.commons.casefolding import (casefold_capsule)
+
 from cltl.reply_generation.lenka_replier import LenkaReplier
+from cltl.reply_generation.phrasers.pattern_phraser import PatternPhraser
 from cltl.reply_generation.thought_selectors.rl_selector import UCB
-from cltl.reply_generation.utils.replier_utils import thoughts_from_brain
+from cltl.reply_generation.utils.thought_utils import thoughts_from_brain
 
 
 class RLReplier(LenkaReplier):
@@ -27,6 +29,9 @@ class RLReplier(LenkaReplier):
         super(RLReplier, self).__init__()
         self._thought_selector = UCB()
         self._log.debug(f"UCB RL Selector ready")
+
+        self._phraser = PatternPhraser()
+        self._log.debug(f"Pattern phraser ready")
 
         self._brain = brain
         self._thought_selector.load(savefile)
@@ -92,6 +97,6 @@ class RLReplier(LenkaReplier):
         thought_info = thought_info["thought"]
 
         # Generate reply
-        reply = self.phrase_correct_thought(utterance, thought_type, thought_info)
+        reply = self._phraser.phrase_correct_thought(utterance, thought_type, thought_info)
 
         return reply
