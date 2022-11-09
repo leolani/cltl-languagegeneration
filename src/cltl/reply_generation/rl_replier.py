@@ -8,7 +8,7 @@
 
 from cltl.commons.casefolding import (casefold_capsule)
 from cltl.reply_generation.lenka_replier import LenkaReplier
-from cltl.reply_generation.reinforcement_learning.rl import UCB
+from cltl.reply_generation.thought_selectors.rl_selector import UCB
 from cltl.reply_generation.utils.replier_utils import thoughts_from_brain
 
 

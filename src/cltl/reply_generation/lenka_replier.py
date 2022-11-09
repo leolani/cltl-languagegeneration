@@ -6,13 +6,9 @@ from cltl.commons.language_data.sentences import NEW_KNOWLEDGE, EXISTING_KNOWLED
     CURIOSITY, HAPPY, TRUST, NO_TRUST, NO_ANSWER
 from cltl.commons.language_helpers import lexicon_lookup
 from cltl.commons.triple_helpers import filtered_types_names
-from cltl.reply_generation.api import BasicReplier, ThoughtSelector
 
-
-class RandomSelector(ThoughtSelector):
-
-    def select(self, thoughts):
-        return random.choice(list(thoughts))
+from cltl.reply_generation.api import BasicReplier
+from cltl.reply_generation.thought_selectors.random_selector import RandomSelector
 
 
 class LenkaReplier(BasicReplier):
@@ -470,7 +466,7 @@ class LenkaReplier(BasicReplier):
 
         return say
 
-    @staticmethod 
+    @staticmethod
     def _phrase_overlaps(all_overlaps, utterance):
         # type: (dict, dict) -> Optional[str]
 

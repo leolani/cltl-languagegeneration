@@ -8,7 +8,7 @@
 
 from cltl.commons.casefolding import (casefold_capsule)
 from cltl.reply_generation.lenka_replier import LenkaReplier
-from cltl.reply_generation.next_sentence_prediction.nsp import NSP
+from cltl.reply_generation.thought_selectors.nsp_selector import NSP
 from cltl.reply_generation.utils.replier_utils import thoughts_from_brain
 
 
@@ -19,7 +19,7 @@ class NSPReplier(LenkaReplier):
         is performed through Next Sentence Prediction (NSP).
 
         params
-        str model_filepath:  file with a pretrained BERT NSP model
+        str model_filepath:  file with a pretrained BERT NSP nsp_model
 
         returns: None
         """
