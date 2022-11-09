@@ -16,7 +16,7 @@ replier = NSPReplier('./../src/cltl/reply_generation/thought_selectors/nsp_model
 for brain_response in tqdm(scenario):
 
     print(f"\n\n---------------------------------------------------------------\n")
-    reply = replier.reply_to_statement(brain_response, proactive=True, persist=True)
+    reply = replier.reply_to_statement(brain_response, persist=True)
 
     if not reply:
         reply = "NO REPLY GENERATED"
