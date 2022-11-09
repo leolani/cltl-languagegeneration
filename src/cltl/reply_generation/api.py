@@ -29,5 +29,5 @@ class BasicReplier(object):
     def reply_to_question(self, brain_response):
         raise NotImplementedError()
 
-    def reply_to_statement(self, brain_response):
+    def reply_to_statement(self, brain_response, entity_only=False, proactive=True, persist=False):
         raise NotImplementedError()
