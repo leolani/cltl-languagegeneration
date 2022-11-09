@@ -1,4 +1,4 @@
-""" Filename:     replier_utils.py
+""" Filename:     thought_utils.py
     Author(s):    Thomas Bellucci
     Description:  Utility functions used by the RLReplier defined in
                   Replier.py.

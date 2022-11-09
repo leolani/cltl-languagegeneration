@@ -18,7 +18,7 @@ class NSP(ThoughtSelector):
         """Initializes an instance of BERT for Next Sentence Prediction (NSP).
 
         params
-        str filename: path to a pretrained NSP BERT model
+        str filename: path to a pretrained NSP BERT nsp_model
 
         returns: None
         """
@@ -32,7 +32,7 @@ class NSP(ThoughtSelector):
 
     def score_response(self, context, response):
         """Predicts for a (context, response) pair their likelihood according to
-        the model.
+        the nsp_model.
 
         returns: Softmax likelihood
         """
