@@ -33,3 +33,52 @@ def replace_pronouns(speaker, author=None, entity_label=None, role=None):
             pronoun = entity_label
 
         return pronoun
+
+
+def assign_spo(utterance, item):
+    empty = ['', 'unknown', 'none']
+
+    # INITIALIZATION
+    predicate = utterance['predicate']['label']
+
+    if utterance['subject']['label'] is None or utterance['subject']['label'].lower() in empty:
+        subject = item['slabel']['value']
+    else:
+        subject = utterance['subject']['label']
+
+    if utterance['object']['label'] is None or utterance['object']['label'].lower() in empty:
+        object = item['olabel']['value']
+    else:
+        object = utterance['object']['label']
+
+    return subject, predicate, object
+
+
+def deal_with_authors(author, previous_author, predicate, previous_predicate, say):
+    # Deal with author
+    if not author:
+        author = "someone"
+
+    if author != previous_author:
+        say += author + ' told me '
+        previous_author = author
+    else:
+        if predicate != previous_predicate:
+            say += ' that '
+
+    return say, previous_author
+
+
+def fix_entity(entity, speaker):
+    new_ent = ''
+    if '-' in entity:
+        entity_tokens = entity.split('-')
+
+        for word in entity_tokens:
+            new_ent += replace_pronouns(speaker, entity_label=word, role='pos') + ' '
+
+    else:
+        new_ent += replace_pronouns(speaker, entity_label=entity)
+
+    entity = new_ent
+    return entity
