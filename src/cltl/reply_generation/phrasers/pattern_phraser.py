@@ -161,30 +161,24 @@ class PatternPhraser(Phraser):
             return None
 
         entity_role = random.choice(['subject', 'object'])
-        entity_label = utterance['triple']['_subject']['_label'] \
-            if entity_role == 'subject' else utterance['triple']['_complement']['_label']
         novelty = novelties['_subject'] if entity_role == 'subject' else novelties['_complement']
 
-        if novelty:
+        if 'entity' in utterance.keys():
+            entity_label = utterance['entity']['_label']
+            entity_label = replace_pronouns(utterance['source']['label'] if 'source' in utterance.keys() else 'author',
+                                            entity_label=entity_label, role=entity_role)
+        else:
+            entity_label = utterance['triple']['_subject']['_label'] if entity_role == 'subject' \
+                else utterance['triple']['_complement']['_label']
             entity_label = replace_pronouns(utterance['author']['label'], entity_label=entity_label, role=entity_role)
+
+        if novelty:
             say = random.choice(NEW_KNOWLEDGE)
-            if entity_label != 'you':  # TODO or type person?
-                # Checked
-                say += ' I had never heard about %s before!' % replace_pronouns(utterance['author']['label'],
-                                                                                entity_label=entity_label,
-                                                                                role='object')
-            else:
-                say += ' I am excited to get to know about %s!' % entity_label
+            say += ' I had never heard about %s before!' % entity_label
 
         else:
             say = random.choice(EXISTING_KNOWLEDGE)
-            if entity_label != 'you':
-                # Checked
-                say += ' I have heard about %s before' % replace_pronouns(utterance['author']['label'],
-                                                                          entity_label=entity_label,
-                                                                          role='object')
-            else:
-                say += ' I love learning more and more about %s!' % entity_label
+            say += ' I have heard about %s before' % entity_label
 
         return say
 
