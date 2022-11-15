@@ -8,6 +8,7 @@ from cltl.combot.infra.event import Event, EventBus
 from cltl.combot.infra.resource import ResourceManager
 from cltl.combot.infra.time_util import timestamp_now
 from cltl.combot.infra.topic_worker import TopicWorker
+from cltl.commons.discrete import UtteranceType
 from cltl_service.emissordata.client import EmissorDataClient
 from emissor.representation.scenario import TextSignal
 
@@ -68,15 +69,15 @@ class ReplyGenerationService:
         for brain_response in event.payload:
             logger.debug("Brain response: (%s)", brain_response)
             try:
-                brain_response = brain_response_to_json(brain_response)
+                response_json = brain_response_to_json(brain_response)
                 for replier in self._repliers:
                     reply = None
-                    if 'statement' in brain_response:
-                        reply = replier.reply_to_statement(brain_response, persist=True)
-                    elif 'question' in brain_response:
-                        reply = replier.reply_to_question(brain_response)
-                    elif 'mention' in brain_response:
-                        reply = replier.reply_to_mention(brain_response, persist=True)
+                    if self._is_utterance_type(brain_response, UtteranceType.STATEMENT):
+                        reply = replier.reply_to_statement(response_json, persist=True)
+                    if self._is_utterance_type(brain_response, UtteranceType.QUESTION):
+                        reply = replier.reply_to_question(response_json)
+                    if self._is_utterance_type(brain_response, UtteranceType.TEXT_MENTION):
+                        reply = replier.reply_to_mention(response_json, persist=True)
                     if reply:
                         reply_list.append(reply)
                         break
@@ -88,6 +89,22 @@ class ReplyGenerationService:
         if response:
             extractor_event = self._create_payload(response)
             self._event_bus.publish(self._output_topic, Event.for_payload(extractor_event))
+            logger.debug("Created reply from %s replies", len(reply_list))
+
+    def _is_utterance_type(self, brain_response, utterance_type):
+        if 'statement' in brain_response:
+            brain_input = brain_response['statement']
+        elif 'question' in brain_response:
+            brain_input = brain_response['question']
+        elif 'mention' in brain_response:
+            brain_input = brain_response['mention']
+        else:
+            return False
+
+        response_type = brain_input['utterance_type']
+        response_type = response_type.name if isinstance(response_type, UtteranceType) else response_type
+
+        return response_type.lower() == utterance_type.name.lower()
 
     def _create_payload(self, response):
         scenario_id = self._emissor_data.get_current_scenario_id()
