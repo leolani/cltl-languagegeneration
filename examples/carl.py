@@ -12,5 +12,15 @@ scenario = json.load(f)
 replier = LenkaReplier()
 
 for brain_response in tqdm(scenario):
-    reply = replier.reply_to_statement(brain_response, proactive=True, persist=True)
+    reply = None
+    if 'statement' in brain_response:
+        reply = replier.reply_to_statement(brain_response, persist=True,
+                                       thought_options=['_subject_gaps', '_complement_gaps'])
+    elif 'question' in brain_response:
+        reply = replier.reply_to_question(brain_response)
+    elif 'mention' in brain_response:
+        reply = replier.reply_to_mention(brain_response, persist=True)
+    elif 'experience' in brain_response:
+        reply = "No replies to EXPERIENCE have been implemented"
+
     print(reply)

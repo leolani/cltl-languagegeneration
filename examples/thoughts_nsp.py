@@ -11,12 +11,12 @@ scenario_json_file = './data/' + scenario_file_name
 f = open(scenario_json_file, )
 scenario = json.load(f)
 
-replier = NSPReplier('./../src/cltl/reply_generation/next_sentence_prediction/model')
+replier = NSPReplier('./../src/cltl/reply_generation/thought_selectors/nsp_model')
 
 for brain_response in tqdm(scenario):
 
     print(f"\n\n---------------------------------------------------------------\n")
-    reply = replier.reply_to_statement(brain_response, proactive=True, persist=True)
+    reply = replier.reply_to_statement(brain_response, persist=True)
 
     if not reply:
         reply = "NO REPLY GENERATED"

@@ -1,18 +1,14 @@
 import random
-from typing import Optional
 
 from cltl.commons.casefolding import casefold_capsule
-from cltl.commons.language_data.sentences import NEW_KNOWLEDGE, EXISTING_KNOWLEDGE, CONFLICTING_KNOWLEDGE, \
-    CURIOSITY, HAPPY, TRUST, NO_TRUST, NO_ANSWER
+from cltl.commons.language_data.sentences import NO_ANSWER
 from cltl.commons.language_helpers import lexicon_lookup
 from cltl.commons.triple_helpers import filtered_types_names
-from cltl.reply_generation.api import BasicReplier, ThoughtSelector
 
-
-class RandomSelector(ThoughtSelector):
-
-    def select(self, thoughts):
-        return random.choice(list(thoughts))
+from cltl.reply_generation.api import BasicReplier
+from cltl.reply_generation.phrasers.pattern_phraser import PatternPhraser
+from cltl.reply_generation.thought_selectors.random_selector import RandomSelector
+from cltl.reply_generation.utils.phraser_utils import replace_pronouns, assign_spo, deal_with_authors, fix_entity
 
 
 class LenkaReplier(BasicReplier):
@@ -30,7 +26,11 @@ class LenkaReplier(BasicReplier):
         self._thought_selector = RandomSelector()
         self._log.debug(f"Random Selector ready")
 
+        self._phraser = PatternPhraser()
+        self._log.debug(f"Pattern phraser ready")
+
     def reply_to_question(self, brain_response):
+        # Quick check if there is anything to do here
         if not brain_response['response']:
             return self._phrase_no_answer_to_question(brain_response['question'])
 
@@ -48,14 +48,14 @@ class LenkaReplier(BasicReplier):
         gram_number = ''
         for item in brain_response['response']:
             # INITIALIZATION
-            subject, predicate, object = self._assign_spo(utterance, item)
+            subject, predicate, object = assign_spo(utterance, item)
 
-            author = self._replace_pronouns(utterance['author']['label'], author=item['authorlabel']['value'])
-            subject = self._replace_pronouns(utterance['author']['label'], entity_label=subject, role='subject')
-            object = self._replace_pronouns(utterance['author']['label'], entity_label=object, role='object')
+            author = replace_pronouns(utterance['author']['label'], author=item['authorlabel']['value'])
+            subject = replace_pronouns(utterance['author']['label'], entity_label=subject, role='subject')
+            object = replace_pronouns(utterance['author']['label'], entity_label=object, role='object')
 
-            subject = self._fix_entity(subject, utterance['author']['label'])
-            object = self._fix_entity(object, utterance['author']['label'])
+            subject = fix_entity(subject, utterance['author']['label'])
+            object = fix_entity(object, utterance['author']['label'])
 
             # Hash item such that duplicate entries have the same hash
             item_hash = '{}_{}_{}_{}'.format(subject, predicate, object, author)
@@ -75,7 +75,7 @@ class LenkaReplier(BasicReplier):
                 gram_number = subject_entry['number']
 
             # Deal with author
-            say, previous_author = self._deal_with_authors(author, previous_author, predicate, previous_predicate, say)
+            say, previous_author = deal_with_authors(author, previous_author, predicate, previous_predicate, say)
 
             if predicate.endswith('is'):
 
@@ -138,94 +138,54 @@ class LenkaReplier(BasicReplier):
         else:
             return random.choice(NO_ANSWER)
 
-    def reply_to_statement(self, brain_response, entity_only=False, proactive=True, persist=False):
+    def reply_to_statement(self, brain_response, persist=False, thought_options=None):
         """
-        Phrase a random thought
+        Phrase a thought based on the brain response
         Parameters
         ----------
         brain_response: output of the brain
-        entity_only: Focus on thoughts related to entities (entity novelty, and gaps)
-        proactive: Include gaps and overlaps for a more proactive agent (an agents that asks questions and bonds over
-                known information)
         persist: Keep looping through thoughts until you find one to phrase
+        thought_options: Set from before which types of thoughts to consider in the phrasing
 
         Returns
         -------
 
         """
         # Quick check if there is anything to do here
-        if 'statement' not in brain_response.keys() or brain_response['statement']['triple'] is None:
+        if not brain_response['statement']['triple']:
             return None
 
         # What types of thoughts will we phrase?
-        utterance = brain_response['statement']
-        if entity_only:
-            options = ['_entity_novelty', '_subject_gaps', '_complement_gaps']
-        else:
-            options = ['_complement_conflict', '_negation_conflicts', '_statement_novelty', '_entity_novelty', '_trust']
-
-        if proactive:
-            options.extend(['_subject_gaps', '_complement_gaps', '_overlaps'])
-        self._log.debug(f'Thoughts options: {options}')
+        if not thought_options:
+            thought_options = ['_complement_conflict', '_negation_conflicts', '_statement_novelty', '_entity_novelty',
+                               '_subject_gaps', '_complement_gaps', '_overlaps', '_trust']
+        self._log.debug(f'Thoughts options: {thought_options}')
 
         # Casefold
-        utterance = casefold_capsule(utterance, format='natural')
-        thoughts = brain_response['thoughts']
-        thoughts = casefold_capsule(thoughts, format='natural')
+        utterance = casefold_capsule(brain_response['statement'], format='natural')
+        thoughts = casefold_capsule(brain_response['thoughts'], format='natural')
 
         # Filter out None thoughts
-        options = [option for option in options if thoughts[option] is not None]
+        thought_options = [option for option in thought_options if thoughts[option] is not None]
 
-        if not options:
-            reply = self._phrase_fallback()
+        if not thought_options:
+            reply = self._phraser.phrase_fallback()
         else:
             # Select thought
-            thought_type = self._thought_selector.select(options)
+            thought_type = self._thought_selector.select(thought_options)
             self._log.info(f"Chosen thought type: {thought_type}")
 
             # Generate reply
-            reply = self.phrase_correct_thought(utterance, thought_type, thoughts[thought_type])
+            reply = self._phraser.phrase_correct_thought(utterance, thought_type, thoughts[thought_type])
 
+            # Recursion if there is no answer
+            # In theory we do not run into an infinite loop because there will always be a value for novelty
             if persist and reply is None:
-                reply = self.reply_to_statement(brain_response, proactive=proactive, persist=persist)
+                reply = self.reply_to_statement(brain_response, persist=persist, thought_options=thought_options)
 
         return reply
 
-    def phrase_correct_thought(self, utterance, thought_type, thought_info, fallback=True):
-        reply = None
-        if thought_type == "_complement_conflict":
-            reply = self._phrase_cardinality_conflicts(thought_info, utterance)
-
-        elif thought_type == "_negation_conflicts":
-            reply = self._phrase_negation_conflicts(thought_info, utterance)
-
-        elif thought_type == "_statement_novelty":
-            reply = self._phrase_statement_novelty(thought_info, utterance)
-
-        elif thought_type == "_entity_novelty":
-            reply = self._phrase_type_novelty(thought_info, utterance)
-
-        elif thought_type == "_complement_gaps":
-            reply = self._phrase_complement_gaps(thought_info, utterance)
-
-        elif thought_type == "_subject_gaps":
-            reply = self._phrase_subject_gaps(thought_info, utterance)
-
-        elif thought_type == "_overlaps":
-            reply = self._phrase_overlaps(thought_info, utterance)
-
-        elif thought_type == "_trust":
-            reply = self._phrase_trust(thought_info)
-
-        if fallback and reply is None:  # Fallback strategy
-            reply = self._phrase_fallback()
-
-        # Formatting
-        if reply:
-            reply = reply.replace("-", " ").replace("  ", " ")
-
-        return reply
-
+<<<<<<< HEAD
     @staticmethod
     def _phrase_cardinality_conflicts(conflicts, utterance):
         # type: (list[dict], dict) -> Optional[str]
@@ -541,91 +501,50 @@ class LenkaReplier(BasicReplier):
         thoughts were generated.
 
         returns: phrase
+=======
+    def reply_to_mention(self, brain_response, persist=False, thought_options=None):
+>>>>>>> 3a02d79840a6895d60fd03d61f3b5cb02a0b7d2b
         """
-        self._log.info(f"Empty response")
-        return "I do not know what to say."
+        Phrase a thought based on the brain response
+        Parameters
+        ----------
+        brain_response: output of the brain
+        persist: Keep looping through thoughts until you find one to phrase
+        thought_options: Set from before which types of thoughts to consider in the phrasing
 
-    @staticmethod
-    def _assign_spo(utterance, item):
-        empty = ['', 'unknown', 'none']
+        Returns
+        -------
 
-        # INITIALIZATION
-        predicate = utterance['predicate']['label']
+        """
+        # Quick check if there is anything to do here
+        if not brain_response['mention']['entity']:
+            return None
 
-        if utterance['subject']['label'] is None or utterance['subject']['label'].lower() in empty:
-            subject = item['slabel']['value']
+        # What types of thoughts will we phrase?
+        if not thought_options:
+            thought_options = ['_entity_novelty', '_complement_gaps']
+        self._log.debug(f'Thoughts options: {thought_options}')
+
+        # Casefold
+        utterance = casefold_capsule(brain_response['mention'], format='natural')
+        thoughts = casefold_capsule(brain_response['thoughts'], format='natural')
+
+        # Filter out None thoughts
+        options = [option for option in thought_options if thoughts[option] is not None]
+
+        if not thought_options:
+            reply = self._phraser.phrase_fallback()
         else:
-            subject = utterance['subject']['label']
+            # Select thought
+            thought_type = self._thought_selector.select(options)
+            self._log.info(f"Chosen thought type: {thought_type}")
 
-        if utterance['object']['label'] is None or utterance['object']['label'].lower() in empty:
-            object = item['olabel']['value']
-        else:
-            object = utterance['object']['label']
+            # Generate reply
+            reply = self._phraser.phrase_correct_thought(utterance, thought_type, thoughts[thought_type])
 
-        return subject, predicate, object
+            # Recursion if there is no answer.
+            # In theory we do not run into an infinite loop because there will always be a value for novelty
+            if persist and reply is None:
+                reply = self.reply_to_mention(brain_response, persist=persist, thought_options=thought_options)
 
-    @staticmethod
-    def _deal_with_authors(author, previous_author, predicate, previous_predicate, say):
-        # Deal with author
-        if not author:
-            author = "someone"
-
-        if author != previous_author:
-            say += author + ' told me '
-            previous_author = author
-        else:
-            if predicate != previous_predicate:
-                say += ' that '
-
-        return say, previous_author
-
-    def _fix_entity(self, entity, speaker):
-        new_ent = ''
-        if '-' in entity:
-            entity_tokens = entity.split('-')
-
-            for word in entity_tokens:
-                new_ent += self._replace_pronouns(speaker, entity_label=word, role='pos') + ' '
-
-        else:
-            new_ent += self._replace_pronouns(speaker, entity_label=entity)
-
-        entity = new_ent
-        return entity
-
-    @staticmethod
-    def _replace_pronouns(speaker, author=None, entity_label=None, role=None):
-        if entity_label is None and author is None:
-            return speaker
-
-        if role == 'pos':
-            # print('pos', speaker, entity_label)
-            if speaker.lower() == entity_label.lower():
-                pronoun = 'your'
-            elif entity_label.lower() == 'leolani':
-                pronoun = 'my'
-            else:
-                pronoun = entity_label  # third person pos.
-            return pronoun
-
-        # Fix author
-        elif author is not None and author.lower() not in ['', 'unknown', 'none']:
-            if speaker.lower() == author.lower():
-                pronoun = 'you'
-            elif author.lower() == 'leolani':
-                pronoun = 'I'
-            else:
-                pronoun = author.title()
-
-            return pronoun
-
-        # Entity
-        if entity_label is not None and entity_label.lower() not in ['', 'unknown', 'none']:
-            if speaker.lower() in [entity_label.lower(), 'speaker'] or entity_label == 'Speaker':
-                pronoun = 'you'
-            elif entity_label.lower() == 'leolani':
-                pronoun = 'I'
-            else:
-                pronoun = entity_label
-
-            return pronoun
+        return reply

@@ -35,7 +35,6 @@ setup(
             'transformers~=4.16.2',
         ],
         "service": [
-            "cltl.combot",
             "cltl.brain",
             "cltl.emissor-data[client]",
             "emissor",
