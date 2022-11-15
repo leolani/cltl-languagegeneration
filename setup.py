@@ -26,6 +26,7 @@ setup(
     install_requires=[
         'tqdm~=4.62',
         'matplotlib~=3.4',
+        'simplenlg',
         "cltl.combot"
     ],
     setup_requires=['flake8'],

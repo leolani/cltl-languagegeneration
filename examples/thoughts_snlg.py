@@ -16,7 +16,7 @@ replier = SimpleNLGReplier()
 for brain_response in tqdm(scenario):
 
     print(f"\n\n---------------------------------------------------------------\n")
-    reply = replier.reply_to_statement(brain_response, proactive=True, persist=True)
+    reply = replier.reply_to_statement(brain_response, persist=True, thought_options=['_complement_gaps'])
 
     if not reply:
         reply = "NO REPLY GENERATED"

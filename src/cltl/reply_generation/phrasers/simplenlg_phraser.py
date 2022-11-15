@@ -4,13 +4,42 @@ from typing import Optional
 from cltl.commons.language_data.sentences import NEW_KNOWLEDGE, EXISTING_KNOWLEDGE, CONFLICTING_KNOWLEDGE, \
     CURIOSITY, HAPPY
 from cltl.commons.triple_helpers import filtered_types_names
+from simplenlg.framework import *
+from simplenlg.realiser.english import *
 
 from cltl.reply_generation.api import Phraser
 from cltl.reply_generation.utils.phraser_utils import replace_pronouns
 from cltl.reply_generation.utils.thought_utils import clean_overlaps
 
+lexicon = Lexicon.getDefaultLexicon()
+realiser = Realiser(lexicon)
+nlgFactory = NLGFactory(lexicon)
 
-class PatternPhraser(Phraser):
+
+def simple_nlg(subject, predicate, complement=None, modifier=None, negation=False, question=None, tense=None,
+               perfect=False):
+    p = nlgFactory.createClause()
+    p.setSubject(subject)
+    predicate = predicate.replace("-", " ")
+    verb = nlgFactory.createVerbPhrase(predicate)
+    p.setVerb(verb)
+    if complement:
+        p.setObject(complement)
+    if modifier:
+        verb.addModifier(modifier)
+    p.setFeature(Feature.NEGATED, negation)
+    if question:
+        p.setFeature(Feature.INTERROGATIVE_TYPE, question)
+    if tense:
+        p.setFeature(Feature.TENSE, tense)
+    p.setFeature(Feature.PERFECT, perfect)
+
+    text = realiser.realiseSentence(p)
+
+    return text
+
+
+class SimplenlgPhraser(Phraser):
 
     def __init__(self):
         # type: () -> None
@@ -41,10 +70,11 @@ class PatternPhraser(Phraser):
                 else utterance['triple']['_subject']['_label']
 
             # Checked
-            say += ' %s told me in %s that %s %s %s, but now you tell me that %s %s %s' \
-                   % (x, conflict['_provenance']['_date'], y, utterance['triple']['_predicate']['_label'],
-                      conflict['_complement']['_label'],
-                      y, utterance['triple']['_predicate']['_label'], utterance['triple']['_complement']['_label'])
+            say += ' %s told me on %s that %s But now you tell me that %s' \
+                   % (x, conflict['_provenance']['_date'],
+                      simple_nlg(y, utterance['triple']['_predicate']['_label'], conflict['_complement']['_label']),
+                      simple_nlg(y, utterance['triple']['_predicate']['_label'],
+                                 utterance['triple']['_complement']['_label']))
 
             return say
 
@@ -68,15 +98,17 @@ class PatternPhraser(Phraser):
                 affirmative_conflict = random.choice(affirmative_conflict)
                 negative_conflict = random.choice(negative_conflict)
 
-                say += ' %s told me in %s that %s %s %s, but in %s %s told me that %s did not %s %s' \
+                say += ' %s told me on %s that %s But on %s %s told me that %s' \
                        % (affirmative_conflict['_provenance']['_author']['_label'],
                           affirmative_conflict['_provenance']['_date'],
-                          utterance['triple']['_subject']['_label'], utterance['triple']['_predicate']['_label'],
-                          utterance['triple']['_complement']['_label'],
+                          simple_nlg(utterance['triple']['_subject']['_label'],
+                                     utterance['triple']['_predicate']['_label'],
+                                     utterance['triple']['_complement']['_label']),
                           negative_conflict['_provenance']['_date'],
                           negative_conflict['_provenance']['_author']['_label'],
-                          utterance['triple']['_subject']['_label'], utterance['triple']['_predicate']['_label'],
-                          utterance['triple']['_complement']['_label'])
+                          simple_nlg(utterance['triple']['_subject']['_label'],
+                                     utterance['triple']['_predicate']['_label'],
+                                     utterance['triple']['_complement']['_label'], negation=True))
 
                 return say
 
@@ -98,23 +130,24 @@ class PatternPhraser(Phraser):
                 else:
                     any_type = 'anything'
 
-                # Checked
-                say += ' I did not know %s that %s %s' % (any_type, utterance['triple']['_subject']['_label'],
-                                                          utterance['triple']['_predicate']['_label'])
+                # [Lea] Not included in current tests
+                say += ' I did not know %s that %s' % (any_type, simple_nlg(utterance['triple']['_subject']['_label'],
+                                                                            utterance['triple']['_predicate'][
+                                                                                '_label']))
 
             elif entity_role == 'object':
-                # Checked
-                say += ' I did not know anybody who %s %s' % (utterance['triple']['_predicate']['_label'],
-                                                              utterance['triple']['_complement']['_label'])
+                # [Lea] Not included in current tests
+                say += ' I did not know anybody %s' % (simple_nlg("who", utterance['triple']['_predicate']['_label'],
+                                                                  utterance['triple']['_complement']['_label']))
 
         # I already knew this
         else:
             say = random.choice(EXISTING_KNOWLEDGE)
             novelty = random.choice(novelties)
 
-            # Checked
-            say += ' %s told me about it in %s' % (novelty['_provenance']['_author']['_label'],
-                                                   novelty['_provenance']['_date'])
+            # [Lea] Checked
+            say += ' %s told me about it on %s.' % (novelty['_provenance']['_author']['_label'],
+                                                    novelty['_provenance']['_date'])
 
         return say
 
@@ -167,11 +200,18 @@ class PatternPhraser(Phraser):
         say = random.choice(CURIOSITY)
 
         if entity_role == 'subject':
-            if 'is ' in gap['_predicate']['_label'] or ' is' in gap['_predicate']['_label']:
+            if 'is-' in gap['_predicate']['_label'] or ' is' in gap['_predicate']['_label']:
                 say += ' Is there a %s that %s %s?' % (filtered_types_names(gap['_entity']['_types']),
                                                        gap['_predicate']['_label'],
                                                        gap['_known_entity']['_label'])
-            elif ' of' in gap['_predicate']['_label']:
+            elif 'be-' in gap['_predicate']['_label']:
+                # Be-question
+                say += ' %s' % (simple_nlg(gap['_known_entity']['_label'],
+                                           gap['_predicate']['_label'],
+                                           filtered_types_names(gap['_entity']['_types']),
+                                           question=InterrogativeType.YES_NO, tense=Tense.PRESENT, perfect=True))
+
+            elif '-of' in gap['_predicate']['_label']:
                 say += ' Is there a %s that %s is %s?' % (filtered_types_names(gap['_entity']['_types']),
                                                           gap['_known_entity']['_label'],
                                                           gap['_predicate']['_label'])
@@ -180,11 +220,12 @@ class PatternPhraser(Phraser):
                 say += ' Is there a %s that is %s %s?' % (filtered_types_names(gap['_entity']['_types']),
                                                           gap['_predicate']['_label'],
                                                           gap['_known_entity']['_label'])
+
             else:
-                # Checked
-                say += ' Has %s %s %s?' % (gap['_known_entity']['_label'],
-                                           gap['_predicate']['_label'],
-                                           filtered_types_names(gap['_entity']['_types']))
+                # Verb-question
+                say += ' Has %s?' % (simple_nlg(gap['_known_entity']['_label'],
+                                                gap['_predicate']['_label'],
+                                                filtered_types_names(gap['_entity']['_types']), tense=Tense.PAST))
 
         elif entity_role == 'object':
             if '#' in filtered_types_names(gap['_entity']['_types']):
@@ -195,7 +236,13 @@ class PatternPhraser(Phraser):
                 say += ' Has %s ever %s %s?' % (filtered_types_names(gap['_entity']['_types']),
                                                 gap['_predicate']['_label'],
                                                 gap['_known_entity']['_label'])
-
+            elif 'be-' in gap['_predicate']['_label']:  # [Lea] TODO NEXT / CHECKPOINT
+                # Checked
+                say += ' %s ' % (simple_nlg(filtered_types_names(gap['_entity']['_types']),
+                                            gap['_predicate']['_label'],
+                                            gap['_known_entity']['_label'],
+                                            # modifier="ever",
+                                            question=InterrogativeType.YES_NO, tense=Tense.PRESENT, perfect=True))
             else:
                 # Checked
                 say += ' Has %s ever %s a %s?' % (gap['_known_entity']['_label'],
@@ -274,19 +321,21 @@ class PatternPhraser(Phraser):
 
         elif entity_role == 'subject':
             sample = random.sample(overlaps, 2)
-            say += ' Now I know %s items that %s %s, like %s and %s' % (len(overlaps),
-                                                                        utterance['triple']['_subject']['_label'],
-                                                                        utterance['triple']['_predicate']['_label'],
-                                                                        sample[0]['_entity']['_label'],
-                                                                        sample[1]['_entity']['_label'])
+            say += ' Now I know %s items that %s' \
+                   ' For example %s and %s.' % (len(overlaps),
+                                                simple_nlg(utterance['triple']['_subject']['_label'],
+                                                           utterance['triple']['_predicate']['_label']),
+                                                sample[0]['_entity']['_label'],
+                                                sample[1]['_entity']['_label'])
 
         elif entity_role == 'object':
             sample = random.sample(overlaps, 2)
             types = filtered_types_names(sample[0]['_entity']['_types']) if sample[0]['_entity']['_types'] else 'things'
-            say += ' Now I know %s %s that %s %s, like %s and %s' % (len(overlaps), types,
-                                                                     utterance['triple']['_predicate']['_label'],
-                                                                     utterance['triple']['_complement']['_label'],
-                                                                     sample[0]['_entity']['_label'],
-                                                                     sample[1]['_entity']['_label'])
+            say += ' Now I know %s %s %s ' \
+                   'For example %s and %s.' % (len(overlaps), types,
+                                               simple_nlg("that", utterance['triple']['_predicate']['_label'],
+                                                          utterance['triple']['_complement']['_label']),
+                                               sample[0]['_entity']['_label'],
+                                               sample[1]['_entity']['_label'])
 
         return say

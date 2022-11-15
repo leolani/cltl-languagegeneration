@@ -10,6 +10,18 @@ import random
 from itertools import combinations
 
 
+def clean_overlaps(overlaps):
+    # Clean duplicates in overlaps
+    overlapss = []
+    seen = set()
+    for ov in overlaps:
+        if not ov['_entity']['_id'] in seen:
+            seen.add(ov['_entity']['_id'])
+            overlapss.append(ov)
+
+    return overlapss
+
+
 def thoughts_from_brain(utt, cap, filter=None):
     """Takes a brain response capsule and extracts thoughts from it in the form of
     a dictionary, e.g. {'object_gap person book':('_object_gap', thought_dict), ...}.

@@ -138,7 +138,7 @@ class LenkaReplier(BasicReplier):
         else:
             return random.choice(NO_ANSWER)
 
-    def reply_to_statement(self, brain_response, persist=False, thought_options=None):
+    def reply_to_statement(self, brain_response, persist=False, thought_options=None, end_recursion=5):
         """
         Phrase a thought based on the brain response
         Parameters
@@ -146,6 +146,7 @@ class LenkaReplier(BasicReplier):
         brain_response: output of the brain
         persist: Keep looping through thoughts until you find one to phrase
         thought_options: Set from before which types of thoughts to consider in the phrasing
+        end_recursion: Signal for last recursion call
 
         Returns
         -------
@@ -176,12 +177,14 @@ class LenkaReplier(BasicReplier):
             self._log.info(f"Chosen thought type: {thought_type}")
 
             # Generate reply
-            reply = self._phraser.phrase_correct_thought(utterance, thought_type, thoughts[thought_type])
+            reply = self._phraser.phrase_correct_thought(utterance, thought_type, thoughts[thought_type],
+                                                         fallback=end_recursion == 0)
 
             # Recursion if there is no answer
             # In theory we do not run into an infinite loop because there will always be a value for novelty
             if persist and reply is None:
-                reply = self.reply_to_statement(brain_response, persist=persist, thought_options=thought_options)
+                reply = self.reply_to_statement(brain_response, persist=persist, thought_options=thought_options,
+                                                end_recursion=end_recursion - 1)
 
         return reply
 
