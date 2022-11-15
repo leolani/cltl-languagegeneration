@@ -244,7 +244,7 @@ class LenkaReplier(BasicReplier):
                 else utterance['triple']['_subject']['_label']
 
             # Checked
-            say += ' %s told me in %s that %s %s %s, but now you tell me that %s %s %s' \
+            say += ' %s told me on %s that %s %s %s, but now you tell me that %s %s %s' \
                    % (x, conflict['_provenance']['_date'], y, utterance['triple']['_predicate']['_label'],
                       conflict['_complement']['_label'],
                       y, utterance['triple']['_predicate']['_label'], utterance['triple']['_complement']['_label'])
@@ -504,7 +504,7 @@ class LenkaReplier(BasicReplier):
 
             entity_0 = sample[0]['_entity']['_label']
             entity_1 = sample[1]['_entity']['_label']
-
+            # [Lea] add author name = you option
             say += ' Now I know %s items that %s %s, like %s and %s' % (len(overlaps),
                                                                         utterance['triple']['_subject']['_label'],
                                                                         utterance['triple']['_predicate']['_label'],

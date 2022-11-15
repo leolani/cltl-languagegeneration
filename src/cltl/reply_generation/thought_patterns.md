@@ -1,20 +1,20 @@
 - Check all patterns (33)
     - [ ] _complement_conflict (2)
         - [ ] no conflict: say = None 
-        - [ ] many conflicts
+        - [x] many conflicts
     - [ ] _negation_conflicts (2)
         - [ ] no conflict: say = None  
-        - [ ] many conflicts
-    - [ ] _statement_novelty (3) 
-        - [ ] new fact
-            - [ ] subject centric
-            - [ ] object centric
-        - [ ] known fact
-    - [ ] _entity_novelty (4)
-        - [ ] new entity
-            - [ ] any entity
-            - [ ] speaker
-        - [ ] known entity
+        - [x] many conflicts
+    - [x] _statement_novelty (3) 
+        - [x] new fact
+            - [x] subject centric -> not in tests
+            - [x] object centric -> not in tests
+        - [x] known fact
+    - [ ] _phrase_type_novelty (4)
+        - [x] new entity
+            - [x] any entity
+            - [x] speaker 
+        - [ ] known entity -> not in tests
             - [ ] any entity
             - [ ] speaker
     - [ ] _subject_gaps (9)
