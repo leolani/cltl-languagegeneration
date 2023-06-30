@@ -1,5 +1,6 @@
 import logging
-from typing import List, Iterable
+import random
+from typing import List, Iterable, Tuple
 
 from cltl.brain.utils.helper_functions import brain_response_to_json
 from cltl.combot.event.emissor import TextSignalEvent
@@ -16,8 +17,8 @@ from cltl.reply_generation.api import BasicReplier
 
 logger = logging.getLogger(__name__)
 
-CONTENT_TYPE_SEPARATOR = ';'
 
+CONTENT_TYPE_SEPARATOR = ';'
 
 class ReplyGenerationService:
     @classmethod
@@ -25,14 +26,24 @@ class ReplyGenerationService:
                     config_manager: ConfigurationManager):
         config = config_manager.get_config("cltl.reply_generation")
 
+        thought_options = config.get("thought_options", multi=True) \
+                if "thought_options" in config \
+                else ['_complement_conflict', '_negation_conflicts', '_statement_novelty', '_entity_novelty',
+                      '_subject_gaps', '_complement_gaps', '_overlaps', '_trust']
+        utterance_types = [UtteranceType[t.upper()] for t in config.get("utterance_types", multi=True)] \
+                if "utterance_types" in config \
+                else [UtteranceType.QUESTION, UtteranceType.STATEMENT, UtteranceType.TEXT_MENTION]
+
         return cls(config.get("topic_input"), config.get("topic_output"),
                    config.get("intentions", multi=True), config.get("topic_intention"),
-                   repliers, emissor_data, event_bus, resource_manager)
+                   repliers, utterance_types, thought_options, emissor_data, event_bus, resource_manager)
 
     def __init__(self, input_topic: str, output_topic: str, intentions: Iterable[str], intention_topic: str,
-                 repliers: List[BasicReplier], emissor_data: EmissorDataClient,
-                 event_bus: EventBus, resource_manager: ResourceManager):
+                 repliers: List[BasicReplier], utterance_types: List[UtteranceType], thought_options: List[str],
+                 emissor_data: EmissorDataClient, event_bus: EventBus, resource_manager: ResourceManager):
         self._repliers = repliers
+        self._utterance_types = utterance_types
+        self._thought_options = thought_options
 
         self._emissor_data = emissor_data
         self._event_bus = event_bus
@@ -65,35 +76,50 @@ class ReplyGenerationService:
         self._topic_worker = None
 
     def _process(self, event: Event[List[dict]]):
-        reply_list = []
-        for brain_response in event.payload:
-            logger.debug("Brain response: (%s)", brain_response)
-            try:
-                response_json = brain_response_to_json(brain_response)
-                for replier in self._repliers:
-                    reply = None
-                    if self._is_utterance_type(brain_response, UtteranceType.STATEMENT):
-                        reply = replier.reply_to_statement(response_json, persist=True)
-                    elif self._is_utterance_type(brain_response, UtteranceType.QUESTION):
-                        reply = replier.reply_to_question(response_json)
-                    elif self._is_utterance_type(brain_response, UtteranceType.TEXT_MENTION):
-                        reply = replier.reply_to_mention(response_json, persist=True)
-
-                    if reply:
-                        reply_list.append(reply)
-                        break
-            except:
-                logger.exception("Replier error on brain response %s", brain_response)
-
-        # TODO check that this is not too verbose and only contains one question
-        response = '. '.join(set(reply_list))
-
+        brain_responses = [brain_response_to_json(brain_response) for brain_response in event.payload]
+        response = self._best_response(brain_responses)
         if response:
             extractor_event = self._create_payload(response)
             self._event_bus.publish(self._output_topic, Event.for_payload(extractor_event))
-            logger.debug("Created reply from %s replies", len(reply_list))
+            logger.debug("Created reply")
 
-    def _is_utterance_type(self, brain_response, utterance_type):
+    def _best_response(self, brain_responses):
+        # Prioritize replies by utterance type first, then by replier, then choose random
+        typed_responses = [(self._get_utterance_type(response), response) for response in brain_responses]
+        typed_responses = filter(lambda x: x[0] in self._utterance_types, typed_responses)
+
+        ordered_responses = [(utt_type, replier, response)
+                             for utt_type, response in self._ordered_by_type(typed_responses)
+                             for replier in self._repliers]
+
+        if not ordered_responses:
+            logger.debug("No responses for %s", brain_responses)
+            return None
+
+        replies = map(self._get_reply, *zip(*ordered_responses))
+
+        return next(filter(None, replies), None)
+
+    def _ordered_by_type(self, typed_responses: Tuple[UtteranceType, str]) -> Tuple[UtteranceType, str]:
+        randomized = list(typed_responses)
+        random.shuffle(randomized)
+
+        return sorted(randomized, key=self._utterance_type_priority)
+
+    def _utterance_type_priority(self, utterance_response):
+        return self._utterance_types.index(utterance_response[0])
+
+    def _get_reply(self, utterance_type, replier, response):
+        if utterance_type == UtteranceType.STATEMENT:
+            return replier.reply_to_statement(response, persist=True, thought_options=self._thought_options)
+        if utterance_type == UtteranceType.QUESTION:
+            return replier.reply_to_question(response)
+        if utterance_type == UtteranceType.TEXT_MENTION:
+            return replier.reply_to_mention(response, persist=True)
+
+        return None
+
+    def _get_utterance_type(self, brain_response):
         if 'statement' in brain_response:
             brain_input = brain_response['statement']
         elif 'question' in brain_response:
@@ -101,15 +127,21 @@ class ReplyGenerationService:
         elif 'mention' in brain_response:
             brain_input = brain_response['mention']
         else:
-            return False
+            return None
 
         response_type = brain_input['utterance_type']
-        response_type = response_type.name if isinstance(response_type, UtteranceType) else response_type
 
-        return response_type.lower() == utterance_type.name.lower()
+        if isinstance(response_type, UtteranceType):
+            return response_type
+
+        try:
+            return UtteranceType[response_type]
+        except:
+            return None
 
     def _create_payload(self, response):
         scenario_id = self._emissor_data.get_current_scenario_id()
         signal = TextSignal.for_scenario(scenario_id, timestamp_now(), timestamp_now(), None, response)
 
         return TextSignalEvent.for_agent(signal)
+

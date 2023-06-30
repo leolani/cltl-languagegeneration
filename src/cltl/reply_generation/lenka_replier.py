@@ -12,18 +12,18 @@ from cltl.reply_generation.utils.phraser_utils import replace_pronouns, assign_s
 
 
 class LenkaReplier(BasicReplier):
-
-    def __init__(self):
-        # type: () -> None
+    def __init__(self, thought_selector = RandomSelector()):
+        # type: (ThoughtSelector) -> None
         """
         Generate natural language based on structured data
 
         Parameters
         ----------
+        thought_selector: ThoughtSelector
+            Thought selector to pick thought type for the reply.
         """
-
         super(LenkaReplier, self).__init__()
-        self._thought_selector = RandomSelector()
+        self._thought_selector = thought_selector
         self._log.debug(f"Random Selector ready")
 
         self._phraser = PatternPhraser()
