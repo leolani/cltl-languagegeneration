@@ -14,7 +14,7 @@ class ThoughtSelector(object):
 
 class Phraser(object):
 
-    def phrase_correct_thought(self, utterance, thought_type, thought_info, fallback=False):
+    def phrase_correct_thought(self, utterance, thought_type, thought_info, fallback=False) -> Optional[str]:
         reply = None
         if thought_type == "_complement_conflict":
             reply = self._phrase_cardinality_conflicts(thought_info, utterance)
@@ -29,16 +29,16 @@ class Phraser(object):
             reply = self._phrase_type_novelty(thought_info, utterance)
 
         elif thought_type == "_complement_gaps":
-            reply = self._phrase_complement_gaps(thought_info)
+            reply = self._phrase_complement_gaps(thought_info, utterance)
 
         elif thought_type == "_subject_gaps":
-            reply = self._phrase_subject_gaps(thought_info)
+            reply = self._phrase_subject_gaps(thought_info, utterance)
 
         elif thought_type == "_overlaps":
             reply = self._phrase_overlaps(thought_info, utterance)
 
         elif thought_type == "_trust":
-            reply = self._phrase_trust(thought_info)
+            reply = self._phrase_trust(thought_info, utterance)
 
         if fallback and reply is None:  # Fallback strategy
             reply = self.phrase_fallback()
@@ -49,30 +49,29 @@ class Phraser(object):
 
         return reply
 
-    def _phrase_cardinality_conflicts(self, thought_info, utterance):
+    def _phrase_cardinality_conflicts(self, thought_info: dict, utterance: dict) -> Optional[str]:
         raise NotImplementedError()
 
-    def _phrase_negation_conflicts(self, thought_info, utterance):
+    def _phrase_negation_conflicts(self, thought_info: dict, utterance: dict) -> Optional[str]:
         raise NotImplementedError()
 
-    def _phrase_statement_novelty(self, thought_info, utterance):
+    def _phrase_statement_novelty(self, thought_info: dict, utterance: dict) -> Optional[str]:
         raise NotImplementedError()
 
-    def _phrase_type_novelty(self, thought_info, utterance):
+    def _phrase_type_novelty(self, thought_info: dict, utterance: dict) -> Optional[str]:
         raise NotImplementedError()
 
-    def _phrase_complement_gaps(self, thought_info):
+    def _phrase_complement_gaps(self, thought_info: dict, utterance: dict) -> Optional[str]:
         raise NotImplementedError()
 
-    def _phrase_subject_gaps(self, thought_info):
+    def _phrase_subject_gaps(self, thought_info: dict, utterance: dict) -> Optional[str]:
         raise NotImplementedError()
 
-    def _phrase_overlaps(self, all_overlaps, utterance):
+    def _phrase_overlaps(self, all_overlaps: dict, utterance: dict) -> Optional[str]:
         raise NotImplementedError()
 
     @staticmethod
-    def _phrase_trust(trust):
-        # type: (float) -> Optional[str]
+    def _phrase_trust(trust: float, utterance: dict) -> Optional[str]:
 
         if not trust:
             return None
@@ -85,13 +84,12 @@ class Phraser(object):
         return say
 
     @staticmethod
-    def phrase_fallback():
+    def phrase_fallback() -> Optional[str]:
         """Phrases a fallback utterance when an error has occurred or no
         thoughts were generated.
 
         returns: phrase
         """
-        # self._log.info(f"Empty response")
         return "I am out of words."
 
 

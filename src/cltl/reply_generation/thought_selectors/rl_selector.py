@@ -182,7 +182,7 @@ class UCB(ThoughtSelector):
 
         # Reduce number of bars if > max_bars
         if len(a) > max_bars:
-            idx = random.sample(range(len(a)), max_bars) # TODO: Top not random
+            idx = random.sample(range(len(a)), max_bars)  # TODO: Top not random
             a = [a[i] for i in idx]
             q = list(np.array(q)[idx])
             u = list(np.array(u)[idx])
@@ -205,5 +205,5 @@ class UCB(ThoughtSelector):
 
         if filename:
             plt.savefig(filename / f"results.png", dpi=300)
-            
+
         plt.show()

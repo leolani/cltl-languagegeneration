@@ -74,16 +74,18 @@ class ReplyGenerationService:
                     reply = None
                     if self._is_utterance_type(brain_response, UtteranceType.STATEMENT):
                         reply = replier.reply_to_statement(response_json, persist=True)
-                    if self._is_utterance_type(brain_response, UtteranceType.QUESTION):
+                    elif self._is_utterance_type(brain_response, UtteranceType.QUESTION):
                         reply = replier.reply_to_question(response_json)
-                    if self._is_utterance_type(brain_response, UtteranceType.TEXT_MENTION):
+                    elif self._is_utterance_type(brain_response, UtteranceType.TEXT_MENTION):
                         reply = replier.reply_to_mention(response_json, persist=True)
+
                     if reply:
                         reply_list.append(reply)
                         break
             except:
                 logger.exception("Replier error on brain response %s", brain_response)
 
+        # TODO check that this is not too verbose and only contains one question
         response = '. '.join(set(reply_list))
 
         if response:

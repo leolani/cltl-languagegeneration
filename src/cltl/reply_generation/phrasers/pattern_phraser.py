@@ -149,7 +149,7 @@ class PatternPhraser(Phraser):
         return say
 
     @staticmethod
-    def _phrase_subject_gaps(all_gaps):
+    def _phrase_subject_gaps(all_gaps, utterance):
         # type: (dict) -> Optional[str]
 
         # There is no gaps, so no response
@@ -205,7 +205,7 @@ class PatternPhraser(Phraser):
         return say
 
     @staticmethod
-    def _phrase_complement_gaps(all_gaps):
+    def _phrase_complement_gaps(all_gaps, utterance):
         # type: (dict) -> Optional[str]
 
         # There is no gaps, so no response
