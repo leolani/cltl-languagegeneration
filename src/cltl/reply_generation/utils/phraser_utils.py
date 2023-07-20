@@ -71,7 +71,7 @@ def deal_with_authors(author, previous_author, predicate, previous_predicate, sa
 
 def fix_entity(entity, speaker):
     new_ent = ''
-    if '-' in entity:
+    if entity and '-' in entity:
         entity_tokens = entity.split('-')
 
         for word in entity_tokens:
