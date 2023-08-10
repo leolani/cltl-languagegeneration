@@ -7,13 +7,12 @@ from cltl.commons.triple_helpers import filtered_types_names
 
 from cltl.reply_generation.api import BasicReplier
 from cltl.reply_generation.phrasers.pattern_phraser import PatternPhraser
-from cltl.reply_generation.thought_selectors.random_selector import RandomSelector
 from cltl.reply_generation.utils.phraser_utils import replace_pronouns, assign_spo, deal_with_authors, fix_entity
 
 
 class LenkaReplier(BasicReplier):
-    def __init__(self, thought_selector = RandomSelector()):
-        # type: (ThoughtSelector) -> None
+    def __init__(self,):
+        # type: () -> None
         """
         Generate natural language based on structured data
 
@@ -23,9 +22,6 @@ class LenkaReplier(BasicReplier):
             Thought selector to pick thought type for the reply.
         """
         super(LenkaReplier, self).__init__()
-        self._thought_selector = thought_selector
-        self._log.debug(f"Random Selector ready")
-
         self._phraser = PatternPhraser()
         self._log.debug(f"Pattern phraser ready")
 

@@ -6,12 +6,6 @@ from cltl.commons.language_data.sentences import TRUST, NO_TRUST
 from cltl.reply_generation import logger
 
 
-class ThoughtSelector(object):
-
-    def select(self, options):
-        raise NotImplementedError()
-
-
 class Phraser(object):
 
     def phrase_correct_thought(self, utterance, thought_type, thought_info, fallback=False) -> Optional[str]:
@@ -106,12 +100,7 @@ class BasicReplier(object):
 
         self._log = logger.getChild(self.__class__.__name__)
         self._log.info("Booted")
-        self._thought_selector = ThoughtSelector()
         self._phraser = Phraser()
-
-    @property
-    def thought_selector(self):
-        return self._thought_selector
 
     @property
     def phraser(self):

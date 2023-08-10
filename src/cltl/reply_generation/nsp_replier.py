@@ -10,7 +10,6 @@ from cltl.commons.casefolding import (casefold_capsule)
 
 from cltl.reply_generation.lenka_replier import LenkaReplier
 from cltl.reply_generation.phrasers.pattern_phraser import PatternPhraser
-from cltl.reply_generation.thought_selectors.nsp_selector import NSP
 from cltl.reply_generation.utils.thought_utils import thoughts_from_brain
 
 
@@ -26,8 +25,6 @@ class NSPReplier(LenkaReplier):
         returns: None
         """
         super(NSPReplier, self).__init__()
-        self._thought_selector = NSP(model_filepath)
-        self._log.debug(f"NSP Selector ready")
 
         self._phraser = PatternPhraser()
         self._log.debug(f"Pattern phraser ready")

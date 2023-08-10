@@ -10,7 +10,6 @@ from cltl.commons.casefolding import (casefold_capsule)
 
 from cltl.reply_generation.lenka_replier import LenkaReplier
 from cltl.reply_generation.phrasers.simplenlg_phraser import SimplenlgPhraser
-from cltl.reply_generation.thought_selectors.rl_selector import UCB
 from cltl.reply_generation.utils.thought_utils import thoughts_from_brain
 
 from rdflib import ConjunctiveGraph
@@ -119,9 +118,6 @@ class RLReplier(LenkaReplier):
         returns: None
         """
         super(RLReplier, self).__init__()
-        self._thought_selector = UCB()
-        self._thought_selector.load(savefile)
-        self._log.debug(f"UCB RL Selector ready")
 
         self._phraser = SimplenlgPhraser()
         self._log.debug(f"SimpleNLG phraser ready")
