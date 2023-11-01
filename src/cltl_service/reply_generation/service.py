@@ -81,7 +81,7 @@ class ReplyGenerationService:
         if response:
             extractor_event = self._create_payload(response)
             self._event_bus.publish(self._output_topic, Event.for_payload(extractor_event))
-            logger.debug("Created reply")
+            logger.debug("Created reply: %s", extractor_event.signal.text)
 
     def _best_response(self, brain_responses):
         # Prioritize replies by utterance type first, then by replier, then choose random
