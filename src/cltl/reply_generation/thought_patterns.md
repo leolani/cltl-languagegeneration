@@ -1,10 +1,10 @@
 - Check all patterns (33)
     - [ ] _complement_conflict (2)
         - [ ] no conflict: say = None 
-        - [x] many conflicts
+        - [x] many conflicts: say = AUTHOR_2 told me OBJECT_1, but now you say OBJECT_2
     - [ ] _negation_conflicts (2)
         - [ ] no conflict: say = None  
-        - [x] many conflicts
+        - [x] many conflicts: AUTHOR_2 told me CLAIM but AUTHOR_3 told me that CLAIM_NEGATED
     - [x] _statement_novelty (3) 
         - [x] new fact
             - [x] subject centric -> not in tests

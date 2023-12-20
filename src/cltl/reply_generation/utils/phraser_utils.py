@@ -82,3 +82,15 @@ def fix_entity(entity, speaker):
 
     entity = new_ent
     return entity
+
+
+def clean_overlaps(overlaps):
+    # Clean duplicates in overlaps
+    overlapss = []
+    seen = set()
+    for ov in overlaps:
+        if not ov['_entity']['_id'] in seen:
+            seen.add(ov['_entity']['_id'])
+            overlapss.append(ov)
+
+    return overlapss
