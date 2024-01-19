@@ -11,8 +11,9 @@ from cltl.reply_generation.thought_selectors.random_selector import RandomSelect
 from cltl.reply_generation.utils.phraser_utils import replace_pronouns, assign_spo, deal_with_authors, fix_entity
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 
+
 class GodelReplier(BasicReplier):
-    def __init__(self, thought_selector = RandomSelector()):
+    def __init__(self, thought_selector=RandomSelector()):
         # type: (ThoughtSelector) -> None
         """
         Generate natural language based on structured data
@@ -30,18 +31,17 @@ class GodelReplier(BasicReplier):
         self._phraser = PatternPhraser()
         self._log.debug(f"Pattern phraser ready")
 
-   def _generate(self, instruction, knowledge, dialog):
-       output = ""
 
-       if knowledge != '':
+    def _generate(self, instruction, knowledge, dialog):
+        if knowledge != '':
             knowledge = '[KNOWLEDGE] ' + knowledge
-       dialog = ' EOS '.join(dialog)
-       query = f"{instruction} [CONTEXT] {dialog} {knowledge}"
-       input_ids = self._tokenizer(f"{query}", return_tensors="pt").input_ids
-       outputs = self._model.generate(input_ids, max_length=128, min_length=8, top_p=0.9, do_sample=True)
-       output = self._tokenizer.decode(outputs[0], skip_special_tokens=True)
+        dialog = ' EOS '.join(dialog)
+        query = f"{instruction} [CONTEXT] {dialog} {knowledge}"
+        input_ids = self._tokenizer(f"{query}", return_tensors="pt").input_ids
+        outputs = self._model.generate(input_ids, max_length=128, min_length=8, top_p=0.9, do_sample=True)
+        output = self._tokenizer.decode(outputs[0], skip_special_tokens=True)
+        return output
 
-       return output
 
     def reply_to_question(self, brain_response):
         # Quick check if there is anything to do here
@@ -135,6 +135,7 @@ class GodelReplier(BasicReplier):
         say = say[:-5]
         return say.replace('-', ' ').replace('  ', ' ')
 
+
     def _phrase_no_answer_to_question(self, utterance):
         self._log.info(f"Empty response")
         subject_types = filtered_types_names(utterance['subject']['type']) \
@@ -152,6 +153,7 @@ class GodelReplier(BasicReplier):
         else:
             return random.choice(NO_ANSWER)
 
+
     def reply_to_statement(self, brain_response, persist=False, thought_options=None, end_recursion=5):
         """
         Phrase a thought based on the brain response
@@ -167,7 +169,7 @@ class GodelReplier(BasicReplier):
 
         """
         # Quick check if there is anything to do here
-        if not 'triple'  in brain_response['statement']:
+        if not 'triple' in brain_response['statement']:
             return None
 
         # What types of thoughts will we phrase?
@@ -190,19 +192,18 @@ class GodelReplier(BasicReplier):
             thought_type = self._thought_selector.select(thought_options)
             self._log.info(f"Chosen thought type: {thought_type}")
 
-
             # Replace this by callimng godel with the structured knowledge from the reponse:
-            # dialog = three utterances from chat
-            # knowledge = thought
+            dialog = "" #three utterances from chat
+            knowledge = thoughts[thought_type]
             # If thought is statement:
-            # instruction = f'Instruction: given a dialog context, you need to make a strong statement.'
+            instruction = f'Instruction: given a dialog context, you need to make a strong statement.'
             # else if thought is question:
-            # instruction = f'Instruction: given a dialog context, you need to ask a question.'
-            # reply = self._generate(instruction, knowledge, dialog)
+            instruction = f'Instruction: given a dialog context, you need to ask a question.'
+            reply = self._generate(instruction, knowledge, dialog)
 
             # Generate reply
-            reply = self._phraser.phrase_correct_thought(utterance, thought_type, thoughts[thought_type],
-                                                         fallback=end_recursion == 0)
+            #reply = self._phraser.phrase_correct_thought(utterance, thought_type, thoughts[thought_type],
+            #                                             fallback=end_recursion == 0)
 
             # Recursion if there is no answer
             # In theory we do not run into an infinite loop because there will always be a value for novelty
@@ -211,6 +212,7 @@ class GodelReplier(BasicReplier):
                                                 end_recursion=end_recursion - 1)
 
         return reply
+
 
     def reply_to_mention(self, brain_response, persist=False, thought_options=None):
         """
@@ -263,3 +265,27 @@ class GodelReplier(BasicReplier):
                 reply = self.reply_to_mention(brain_response, persist=persist, thought_options=thought_options)
 
         return reply
+
+
+def main():
+    replier = GodelReplier()
+    instruction = f'Instruction: given a dialog context, you need to ask a question.'
+    # Leave the knowldge empty
+    knowledge = ''
+    dialog = [
+        'Does money buy happiness?',
+        'Money buys you a lot of things, but not enough to buy happiness.',
+    ]
+    response = replier._generate(instruction, knowledge, dialog)
+    print(response)
+
+    instruction = f'Instruction: given a dialog context, you need to make a strong statement.'
+    # Leave the knowledge empty
+    knowledge = 'Trump. People like billions.'
+    dialog = [
+        'Does money buy happiness?',
+        'It is a question. Money buys you a lot of things, but not enough to buy happiness.',
+        'What is the best way to buy happiness ?'
+    ]
+    response = replier._generate(instruction, knowledge, dialog)
+    print(response)
