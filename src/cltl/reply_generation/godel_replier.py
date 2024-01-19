@@ -9,9 +9,9 @@ from cltl.reply_generation.api import BasicReplier
 from cltl.reply_generation.phrasers.pattern_phraser import PatternPhraser
 from cltl.reply_generation.thought_selectors.random_selector import RandomSelector
 from cltl.reply_generation.utils.phraser_utils import replace_pronouns, assign_spo, deal_with_authors, fix_entity
+from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 
-
-class LenkaReplier(BasicReplier):
+class GodelReplier(BasicReplier):
     def __init__(self, thought_selector = RandomSelector()):
         # type: (ThoughtSelector) -> None
         """
@@ -22,12 +22,26 @@ class LenkaReplier(BasicReplier):
         thought_selector: ThoughtSelector
             Thought selector to pick thought type for the reply.
         """
-        super(LenkaReplier, self).__init__()
+        super(GodelReplier, self).__init__()
         self._thought_selector = thought_selector
         self._log.debug(f"Random Selector ready")
-
+        self._tokenizer = AutoTokenizer.from_pretrained("microsoft/GODEL-v1_1-large-seq2seq")
+        self._model = AutoModelForSeq2SeqLM.from_pretrained("microsoft/GODEL-v1_1-large-seq2seq")
         self._phraser = PatternPhraser()
         self._log.debug(f"Pattern phraser ready")
+
+   def _generate(self, instruction, knowledge, dialog):
+       output = ""
+
+       if knowledge != '':
+            knowledge = '[KNOWLEDGE] ' + knowledge
+       dialog = ' EOS '.join(dialog)
+       query = f"{instruction} [CONTEXT] {dialog} {knowledge}"
+       input_ids = self._tokenizer(f"{query}", return_tensors="pt").input_ids
+       outputs = self._model.generate(input_ids, max_length=128, min_length=8, top_p=0.9, do_sample=True)
+       output = self._tokenizer.decode(outputs[0], skip_special_tokens=True)
+
+       return output
 
     def reply_to_question(self, brain_response):
         # Quick check if there is anything to do here
@@ -176,6 +190,16 @@ class LenkaReplier(BasicReplier):
             thought_type = self._thought_selector.select(thought_options)
             self._log.info(f"Chosen thought type: {thought_type}")
 
+
+            # Replace this by callimng godel with the structured knowledge from the reponse:
+            # dialog = three utterances from chat
+            # knowledge = thought
+            # If thought is statement:
+            # instruction = f'Instruction: given a dialog context, you need to make a strong statement.'
+            # else if thought is question:
+            # instruction = f'Instruction: given a dialog context, you need to ask a question.'
+            # reply = self._generate(instruction, knowledge, dialog)
+
             # Generate reply
             reply = self._phraser.phrase_correct_thought(utterance, thought_type, thoughts[thought_type],
                                                          fallback=end_recursion == 0)
@@ -223,6 +247,12 @@ class LenkaReplier(BasicReplier):
             # Select thought
             thought_type = self._thought_selector.select(options)
             self._log.info(f"Chosen thought type: {thought_type}")
+
+            # Replace this by callimng godel with the structured knowledge from the reponse:
+            # dialog = three utterances from chat
+            # knowledge = thought
+            # instruction = f'Instruction: given a dialog context, you need to make a strong statement.'
+            # reply = self._generate(instruction, knowledge, dialog)
 
             # Generate reply
             reply = self._phraser.phrase_correct_thought(utterance, thought_type, thoughts[thought_type])
