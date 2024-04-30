@@ -23,9 +23,23 @@ class LlamaReplier(BasicReplier):
         ----------
         thought_selector: ThoughtSelector
             Thought selector to pick thought type for the reply.
-        pip install openai==1.23.6
-        run llama_server in the background:
+
+        To run a openai client:
+            pip install openai==1.23.6
+
+        To install the server:
+
+        https://python.langchain.com/docs/integrations/llms/llamacpp/
+        pip install --upgrade --quiet  llama-cpp-python
+        pip install sse_starlette
+        pip install starlette_context
+        pip install pydantic_settings
+
+        run llama_server in another terminal:
             python -m llama_cpp.server --host 0.0.0.0 --model ./models/Meta-Llama-3-8B-Instruct.Q2_K.gguf --n_ctx 2048 --port 9001
+
+
+
         """
         super(LlamaReplier, self).__init__()
         self._language = language
