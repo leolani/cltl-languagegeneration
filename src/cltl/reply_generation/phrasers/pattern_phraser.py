@@ -99,22 +99,29 @@ class PatternPhraser(Phraser):
                     any_type = 'anything'
 
                 # Checked
-                say += ' I did not know %s that %s %s' % (any_type, utterance['triple']['_subject']['_label'],
+                # say += ' I did not know %s that %s %s' % (any_type, utterance['triple']['_subject']['_label'],
+                #                                           utterance['triple']['_predicate']['_label'])
+
+                say += ' Ik wist niet %s dat %s %s' % (any_type, utterance['triple']['_subject']['_label'],
                                                           utterance['triple']['_predicate']['_label'])
 
             elif entity_role == 'object':
                 # Checked
-                say += ' I did not know anybody who %s %s' % (utterance['triple']['_predicate']['_label'],
-                                                              utterance['triple']['_complement']['_label'])
+                # say += ' I did not know anybody who %s %s' % (utterance['triple']['_predicate']['_label'],
+                #                                               utterance['triple']['_complement']['_label'])
 
+                say += ' Ik wist niet dat iemand %s %s' % (utterance['triple']['_predicate']['_label'],
+                                                              utterance['triple']['_complement']['_label'])
         # I already knew this
         else:
             say = random.choice(EXISTING_KNOWLEDGE)
             novelty = random.choice(novelties)
 
             # Checked
-            say += ' %s told me about it in %s' % (novelty['_provenance']['_author']['_label'],
+            say += ' %s  heeft me dat verteld op %s' % (novelty['_provenance']['_author']['_label'],
                                                    novelty['_provenance']['_date'])
+            # say += ' %s told me about it in %s' % (novelty['_provenance']['_author']['_label'],
+            #                                        novelty['_provenance']['_date'])
 
         return say
 
