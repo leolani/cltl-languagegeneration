@@ -58,14 +58,3 @@ instruct_for_conflict = {"role": "system", "content": "You are an intelligent as
      Do not explain what the subject and object is. \
      The response should be just the paraphrased text and nothing else."
            }
-
-def create_statement_prompt(instruct:None, statement: str):
-    triple_text = processor.get_triple_text_from_statement(statement)
-    print("\n\nTriple text:", triple_text)
-    perspective_text = processor.get_perspective_from_statement(statement)
-    print('perspective_text', perspective_text)
-    author = processor.get_source_from_statement(statement)
-    print('author', author)
-    prompt = [instruct, {"role": "user", "content": author + " is " + perspective_text + " that " + triple_text}]
-    return prompt
-
