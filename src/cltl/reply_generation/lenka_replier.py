@@ -25,7 +25,6 @@ class LenkaReplier(BasicReplier):
         super(LenkaReplier, self).__init__()
         self._thought_selector = thought_selector
         self._log.debug(f"Random Selector ready")
-
         self._phraser = PatternPhraser()
         self._log.debug(f"Pattern phraser ready")
 
