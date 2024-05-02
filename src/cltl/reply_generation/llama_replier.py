@@ -11,7 +11,7 @@ from cltl.reply_generation.phrasers.pattern_phraser import PatternPhraser
 from cltl.reply_generation.thought_selectors.random_selector import RandomSelector
 from cltl.reply_generation.utils.phraser_utils import replace_pronouns, assign_spo, deal_with_authors, fix_entity
 from openai import OpenAI
-import prompts.instruct as prompts
+import prompts.response_processing as processor
 
 class LlamaReplier(BasicReplier):
     def __init__(self, thought_selector=RandomSelector(), language="English", llama_server= "http://localhost", port= "9001"):
@@ -24,8 +24,7 @@ class LlamaReplier(BasicReplier):
         thought_selector: ThoughtSelector
             Thought selector to pick thought type for the reply.
 
-        To run a openai client:
-            pip install openai==1.23.6
+        This requires a llama server to run in a terminal.
 
         To install the server:
 
@@ -35,10 +34,18 @@ class LlamaReplier(BasicReplier):
         pip install starlette_context
         pip install pydantic_settings
 
-        run llama_server in another terminal:
+        Download a Llama model from huggingface, e.g.:
+
+         https://huggingface.co/QuantFactory/Meta-Llama-3-8B-Instruct-GGUF
+
+         and place it in a local folder.
+
+
+        To launch llama_server in another terminal specify the path to the local model and the port:
+
             python -m llama_cpp.server --host 0.0.0.0 --model ./models/Meta-Llama-3-8B-Instruct.Q2_K.gguf --n_ctx 2048 --port 9001
 
-
+        The LlamaRepier creates an OPenAI client and will send the prompt request to the server for a response
 
         """
         super(LlamaReplier, self).__init__()
@@ -51,7 +58,7 @@ class LlamaReplier(BasicReplier):
         self._log.debug(f"Pattern phraser ready")
 
 
-    def _generate(self, statement):
+    def _generate_statement_triple(self, statement):
         prompt = prompts.create_prompt(prompts.instruct_for_statement, statement)
         completion = self._llama_client.chat.completions.create(
             # completion = client.chatCompletions.create(
@@ -308,9 +315,20 @@ if __name__ == "__main__":
     data = json.load(file)
     statements = []
     for response in data:
-        statements.append(response["statement"])
-    print("I found", len(statements), " statements")
-    for statement in statements:
-        response = replier._generate(statement)
-        print(response)
+        prompts = processor.get_prompt_input_from_response(response)
+        for prompt in prompts:
+            completion = replier._llama_client.chat.completions.create(
+                # completion = client.chatCompletions.create(
+                model="local-model",  # this field is currently unused
+                messages=prompt,
+                temperature=0,
+                max_tokens=150,
+                stream=True,
+            )
+            new_message = {"role": "assistant", "content": ""}
+            for chunk in completion:
+                if chunk.choices[0].delta.content:
+                    print(chunk.choices[0].delta.content, end="", flush=True)
+                    new_message["content"] += chunk.choices[0].delta.content
+            print(new_message)
 
