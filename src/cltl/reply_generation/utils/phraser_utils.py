@@ -1,3 +1,6 @@
+from cltl.commons.triple_helpers import filtered_types_names
+
+
 def replace_pronouns(speaker, author=None, entity_label=None, role=None):
     if entity_label is None and author is None:
         return speaker
@@ -94,3 +97,14 @@ def clean_overlaps(overlaps):
             overlapss.append(ov)
 
     return overlapss
+
+
+def any_type(utterance):
+    if 'person' in filtered_types_names(utterance['triple']['_complement']['_types']):
+        any_type = 'anybody'
+    elif 'location' in filtered_types_names(utterance['triple']['_complement']['_types']):
+        any_type = 'anywhere'
+    else:
+        any_type = 'anything'
+
+    return any_type

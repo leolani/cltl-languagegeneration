@@ -2,13 +2,14 @@ import random
 from typing import Optional
 
 from cltl.commons.language_data.sentences import NEW_KNOWLEDGE, EXISTING_KNOWLEDGE, CONFLICTING_KNOWLEDGE, \
-    CURIOSITY, HAPPY
+    CURIOSITY, HAPPY, TRUST, NO_TRUST
 from cltl.commons.triple_helpers import filtered_types_names
+from cltl.thoughts.thought_selection.utils.thought_utils import separate_select_negation_conflicts
 from simplenlg.framework import *
 from simplenlg.realiser.english import *
 
 from cltl.reply_generation.api import Phraser
-from cltl.reply_generation.utils.phraser_utils import replace_pronouns, clean_overlaps
+from cltl.reply_generation.utils.phraser_utils import replace_pronouns, any_type
 
 lexicon = Lexicon.getDefaultLexicon()
 realiser = Realiser(lexicon)
@@ -38,6 +39,90 @@ def simple_nlg(subject, predicate, complement=None, modifier=None, negation=Fals
     return text
 
 
+def phrase_ssubject_gap_question(gap):
+    if 'is-' in gap['_predicate']['_label'] or ' is' in gap['_predicate']['_label']:
+        say = ' Is there a %s that %s %s?' % (filtered_types_names(gap['_target_entity_type']['_types']),
+                                              gap['_predicate']['_label'],
+                                              gap['_known_entity']['_label'])
+    elif 'be-' in gap['_predicate']['_label']:
+        # Be-question
+        say = ' %s' % (simple_nlg(gap['_known_entity']['_label'],
+                                  gap['_predicate']['_label'],
+                                  filtered_types_names(gap['_target_entity_type']['_types']),
+                                  question=InterrogativeType.YES_NO, tense=Tense.PRESENT, perfect=True))
+
+    elif '-of' in gap['_predicate']['_label']:
+        say = ' Is there a %s that %s is %s?' % (filtered_types_names(gap['_target_entity_type']['_types']),
+                                                 gap['_known_entity']['_label'],
+                                                 gap['_predicate']['_label'])
+
+    elif ' ' in gap['_predicate']['_label']:
+        say = ' Is there a %s that is %s %s?' % (filtered_types_names(gap['_target_entity_type']['_types']),
+                                                 gap['_predicate']['_label'],
+                                                 gap['_known_entity']['_label'])
+
+    else:
+        # Verb-question
+        say = ' Has %s?' % (simple_nlg(gap['_known_entity']['_label'],
+                                       gap['_predicate']['_label'],
+                                       filtered_types_names(gap['_target_entity_type']['_types']),
+                                       tense=Tense.PAST))
+
+    return say
+
+
+def phrase_scomplement_gap_question(gap):
+    if '#' in filtered_types_names(gap['_target_entity_type']['_types']):
+        say = ' What is %s %s?' % (gap['_known_entity']['_label'],
+                                   gap['_predicate']['_label'])
+    elif ' ' in gap['_predicate']['_label']:
+        # Checked
+        say = ' Has %s ever %s %s?' % (filtered_types_names(gap['_target_entity_type']['_types']),
+                                       gap['_predicate']['_label'],
+                                       gap['_known_entity']['_label'])
+    elif 'be-' in gap['_predicate']['_label']:  # [Lea] TODO NEXT / CHECKPOINT
+        # Checked
+        say = ' %s ' % (simple_nlg(filtered_types_names(gap['_target_entity_type']['_types']),
+                                   gap['_predicate']['_label'],
+                                   gap['_known_entity']['_label'],
+                                   # modifier="ever",
+                                   question=InterrogativeType.YES_NO, tense=Tense.PRESENT, perfect=True))
+    else:
+        # Checked
+        say = ' Has %s ever %s a %s?' % (gap['_known_entity']['_label'],
+                                         gap['_predicate']['_label'],
+                                         filtered_types_names(gap['_target_entity_type']['_types']))
+
+    return say
+
+
+def phrase_csubject_gap_question(gap):
+    if ' in' in gap['_predicate']['_label']:  # ' by' in gap['_predicate']['_label']
+        say = ' Is there a %s %s %s?' % (filtered_types_names(gap['_target_entity_type']['_types']),
+                                         gap['_predicate']['_label'],
+                                         gap['_known_entity']['_label'])
+    else:
+        say = ' Has %s %s by a %s?' % (gap['_known_entity']['_label'],
+                                       gap['_predicate']['_label'],
+                                       filtered_types_names(gap['_target_entity_type']['_types']))
+    return say
+
+
+def phrase_ccomplement_gap_question(gap):
+    if '#' in filtered_types_names(gap['_target_entity_type']['_types']):
+        say = ' What is %s %s?' % (gap['_known_entity']['_label'],
+                                   gap['_predicate']['_label'])
+    elif ' by' in gap['_predicate']['_label']:
+        say = ' Has %s ever %s a %s?' % (gap['_known_entity']['_label'],
+                                         gap['_predicate']['_label'],
+                                         filtered_types_names(gap['_target_entity_type']['_types']))
+    else:
+        say = ' Has a %s ever %s %s?' % (filtered_types_names(gap['_target_entity_type']['_types']),
+                                         gap['_predicate']['_label'],
+                                         gap['_known_entity']['_label'])
+    return say
+
+
 class SimplenlgPhraser(Phraser):
 
     def __init__(self):
@@ -52,17 +137,18 @@ class SimplenlgPhraser(Phraser):
         super(Phraser, self).__init__()
 
     @staticmethod
-    def _phrase_cardinality_conflicts(conflicts, utterance):
+    def _phrase_cardinality_conflicts(selected_thought, utterance):
         # type: (dict, dict) -> Optional[str]
 
         # There is no conflict, so no response
-        if not conflicts:
+        if not selected_thought or not selected_thought["thought_info"]:
             return None
 
         # There is a conflict, so we phrase it
         else:
+            conflict = selected_thought["thought_info"]
+
             say = random.choice(CONFLICTING_KNOWLEDGE)
-            conflict = random.choice(conflicts)
             x = 'you' if conflict['_provenance']['_author']['_label'] == utterance['author']['label'] \
                 else conflict['_provenance']['_author']['_label']
             y = 'you' if utterance['triple']['_subject']['_label'] == conflict['_provenance']['_author']['_label'] \
@@ -78,24 +164,21 @@ class SimplenlgPhraser(Phraser):
             return say
 
     @staticmethod
-    def _phrase_negation_conflicts(conflicts, utterance):
+    def _phrase_negation_conflicts(selected_thought, utterance):
         # type: (dict, dict) -> Optional[str]
 
         # There is no conflict, so no response
-        if not conflicts or len(conflicts) < 2:
+        if not selected_thought or not selected_thought["thought_info"]:
             return None
 
         # There is conflict entries
         else:
-            affirmative_conflict = [item for item in conflicts if item['_polarity_value'] == 'POSITIVE']
-            negative_conflict = [item for item in conflicts if item['_polarity_value'] == 'NEGATIVE']
+            conflicts = selected_thought["thought_info"]
+            affirmative_conflict, negative_conflict = separate_select_negation_conflicts(conflicts)
 
             # There is a conflict, so we phrase it
             if affirmative_conflict and negative_conflict:
                 say = random.choice(CONFLICTING_KNOWLEDGE)
-
-                affirmative_conflict = random.choice(affirmative_conflict)
-                negative_conflict = random.choice(negative_conflict)
 
                 say += ' %s told me on %s that %s But on %s %s told me that %s' \
                        % (affirmative_conflict['_provenance']['_author']['_label'],
@@ -112,30 +195,21 @@ class SimplenlgPhraser(Phraser):
                 return say
 
     @staticmethod
-    def _phrase_statement_novelty(novelties, utterance):
+    def _phrase_statement_novelty(selected_thought, utterance):
         # type: (dict, dict) -> Optional[str]
-        novelties = novelties["provenance"]
 
         # I do not know this before, so be happy to learn
-        if not novelties:
-            entity_role = random.choice(['subject', 'object'])
-
+        if not selected_thought or not selected_thought["thought_info"]:
             say = random.choice(NEW_KNOWLEDGE)
+            entity_role = selected_thought["extra_info"]
 
-            if entity_role == 'subject':
-                if 'person' in filtered_types_names(utterance['triple']['_complement']['_types']):
-                    any_type = 'anybody'
-                elif 'location' in filtered_types_names(utterance['triple']['_complement']['_types']):
-                    any_type = 'anywhere'
-                else:
-                    any_type = 'anything'
-
+            if entity_role == '_subject':
                 # [Lea] Not included in current tests
-                say += ' I did not know %s that %s' % (any_type, simple_nlg(utterance['triple']['_subject']['_label'],
-                                                                            utterance['triple']['_predicate'][
-                                                                                '_label']))
+                typ = any_type(utterance)
+                say += ' I did not know %s that %s' % (typ, simple_nlg(utterance['triple']['_subject']['_label'],
+                                                                       utterance['triple']['_predicate']['_label']))
 
-            elif entity_role == 'object':
+            elif entity_role == '_complement':
                 # [Lea] Not included in current tests
                 say += ' I did not know anybody %s' % (simple_nlg("who", utterance['triple']['_predicate']['_label'],
                                                                   utterance['triple']['_complement']['_label']))
@@ -143,7 +217,7 @@ class SimplenlgPhraser(Phraser):
         # I already knew this
         else:
             say = random.choice(EXISTING_KNOWLEDGE)
-            novelty = random.choice(novelties)
+            novelty = selected_thought["thought_info"]
 
             # [Lea] Checked
             say += ' %s told me about it on %s.' % (novelty['_provenance']['_author']['_label'],
@@ -152,29 +226,28 @@ class SimplenlgPhraser(Phraser):
         return say
 
     @staticmethod
-    def _phrase_type_novelty(novelties, utterance):
+    def _phrase_type_novelty(selected_thought, utterance):
         # type: (dict, dict) -> Optional[str]
 
-        # There is no novelty information, so no response
-        if not novelties:
-            return None
+        entity_role = selected_thought["extra_info"]
+        novelty = selected_thought["thought_info"]
 
-        entity_role = random.choice(['subject', 'object'])
-        novelty = novelties['_subject'] if entity_role == 'subject' else novelties['_complement']
-
+        # Only entity thought
         if 'entity' in utterance.keys():
             entity_label = utterance['entity']['_label']
             entity_label = replace_pronouns(utterance['source']['label'] if 'source' in utterance.keys() else 'author',
                                             entity_label=entity_label, role=entity_role)
+        # Triple thought
         else:
-            entity_label = utterance['triple']['_subject']['_label'] if entity_role == 'subject' \
-                else utterance['triple']['_complement']['_label']
+            entity_label = novelty['entity']['_label']
             entity_label = replace_pronouns(utterance['author']['label'], entity_label=entity_label, role=entity_role)
 
-        if novelty:
+        # There is no novelty information, so happy to learn
+        if not selected_thought or not selected_thought["thought_info"] or selected_thought["thought_info"]["value"]:
             say = random.choice(NEW_KNOWLEDGE)
             say += ' I had never heard about %s before!' % entity_label
 
+        # I already knew this
         else:
             say = random.choice(EXISTING_KNOWLEDGE)
             say += ' I have heard about %s before' % entity_label
@@ -182,161 +255,83 @@ class SimplenlgPhraser(Phraser):
         return say
 
     @staticmethod
-    def _phrase_subject_gaps(all_gaps, utterance):
+    def _phrase_subject_gaps(selected_thought, utterance):
         # type: (dict, dict) -> Optional[str]
 
         # There is no gaps, so no response
-        if not all_gaps:
+        if not selected_thought or not selected_thought["thought_info"]:
             return None
 
-        # random choice between object or subject
-        entity_role = random.choice(['subject', 'object'])
-        gaps = all_gaps['_subject'] if entity_role == 'subject' else all_gaps['_complement']
+        # There is a gap
+        else:
+            entity_role = selected_thought["extra_info"]
+            gap = selected_thought["thought_info"]
 
-        if not gaps:
+            say = random.choice(CURIOSITY)
+            if entity_role == '_subject':
+                say += phrase_ssubject_gap_question(gap)
+
+            elif entity_role == '_complement':
+                say += phrase_scomplement_gap_question(gap)
+            return say
+
+    @staticmethod
+    def _phrase_complement_gaps(selected_thought, utterance):
+        # type: (dict, dict) -> Optional[str]
+
+        # There is no gaps, so no response
+        if not selected_thought or not selected_thought["thought_info"]:
             return None
 
-        gap = random.choice(gaps)
-        say = random.choice(CURIOSITY)
+        # There is a gap
+        else:
+            entity_role = selected_thought["extra_info"]
+            gap = selected_thought["thought_info"]
 
-        if entity_role == 'subject':
-            if 'is-' in gap['_predicate']['_label'] or ' is' in gap['_predicate']['_label']:
-                say += ' Is there a %s that %s %s?' % (filtered_types_names(gap['_target_entity_type']['_types']),
-                                                       gap['_predicate']['_label'],
-                                                       gap['_known_entity']['_label'])
-            elif 'be-' in gap['_predicate']['_label']:
-                # Be-question
-                say += ' %s' % (simple_nlg(gap['_known_entity']['_label'],
-                                           gap['_predicate']['_label'],
-                                           filtered_types_names(gap['_target_entity_type']['_types']),
-                                           question=InterrogativeType.YES_NO, tense=Tense.PRESENT, perfect=True))
+            say = random.choice(CURIOSITY)
+            if entity_role == '_subject':
+                say += phrase_csubject_gap_question(gap)
 
-            elif '-of' in gap['_predicate']['_label']:
-                say += ' Is there a %s that %s is %s?' % (filtered_types_names(gap['_target_entity_type']['_types']),
-                                                          gap['_known_entity']['_label'],
-                                                          gap['_predicate']['_label'])
-
-            elif ' ' in gap['_predicate']['_label']:
-                say += ' Is there a %s that is %s %s?' % (filtered_types_names(gap['_target_entity_type']['_types']),
-                                                          gap['_predicate']['_label'],
-                                                          gap['_known_entity']['_label'])
-
-            else:
-                # Verb-question
-                say += ' Has %s?' % (simple_nlg(gap['_known_entity']['_label'],
-                                                gap['_predicate']['_label'],
-                                                filtered_types_names(gap['_target_entity_type']['_types']),
-                                                tense=Tense.PAST))
-
-        elif entity_role == 'object':
-            if '#' in filtered_types_names(gap['_target_entity_type']['_types']):
-                say += ' What is %s %s?' % (gap['_known_entity']['_label'],
-                                            gap['_predicate']['_label'])
-            elif ' ' in gap['_predicate']['_label']:
-                # Checked
-                say += ' Has %s ever %s %s?' % (filtered_types_names(gap['_target_entity_type']['_types']),
-                                                gap['_predicate']['_label'],
-                                                gap['_known_entity']['_label'])
-            elif 'be-' in gap['_predicate']['_label']:  # [Lea] TODO NEXT / CHECKPOINT
-                # Checked
-                say += ' %s ' % (simple_nlg(filtered_types_names(gap['_target_entity_type']['_types']),
-                                            gap['_predicate']['_label'],
-                                            gap['_known_entity']['_label'],
-                                            # modifier="ever",
-                                            question=InterrogativeType.YES_NO, tense=Tense.PRESENT, perfect=True))
-            else:
-                # Checked
-                say += ' Has %s ever %s a %s?' % (gap['_known_entity']['_label'],
-                                                  gap['_predicate']['_label'],
-                                                  filtered_types_names(gap['_target_entity_type']['_types']))
+            elif entity_role == '_complement':
+                say += phrase_ccomplement_gap_question(gap)
 
         return say
 
     @staticmethod
-    def _phrase_complement_gaps(all_gaps, utterance):
+    def _phrase_overlaps(selected_thought, utterance):
         # type: (dict, dict) -> Optional[str]
-
-        # There is no gaps, so no response
-        if not all_gaps:
+        if not selected_thought or not selected_thought["thought_info"]:
             return None
 
-        # random choice between object or subject
-        entity_role = random.choice(['subject', 'object'])
-        gaps = all_gaps['_subject'] if entity_role == 'subject' else all_gaps['_complement']
+        entity_role = selected_thought["extra_info"]
+        overlap = selected_thought["thought_info"]
 
-        if not gaps:
-            return None
-
-        gap = random.choice(gaps)
-        say = random.choice(CURIOSITY)
-
-        if entity_role == 'subject':
-            if ' in' in gap['_predicate']['_label']:  # ' by' in gap['_predicate']['_label']
-                say += ' Is there a %s %s %s?' % (filtered_types_names(gap['_target_entity_type']['_types']),
-                                                  gap['_predicate']['_label'],
-                                                  gap['_known_entity']['_label'])
-            else:
-                say += ' Has %s %s by a %s?' % (gap['_known_entity']['_label'],
-                                                gap['_predicate']['_label'],
-                                                filtered_types_names(gap['_target_entity_type']['_types']))
-
-        elif entity_role == 'object':
-            if '#' in filtered_types_names(gap['_target_entity_type']['_types']):
-                say += ' What is %s %s?' % (gap['_known_entity']['_label'],
-                                            gap['_predicate']['_label'])
-            elif ' by' in gap['_predicate']['_label']:
-                say += ' Has %s ever %s a %s?' % (gap['_known_entity']['_label'],
-                                                  gap['_predicate']['_label'],
-                                                  filtered_types_names(gap['_target_entity_type']['_types']))
-            else:
-                say += ' Has a %s ever %s %s?' % (filtered_types_names(gap['_target_entity_type']['_types']),
-                                                  gap['_predicate']['_label'],
-                                                  gap['_known_entity']['_label'])
-
-        return say
-
-    @staticmethod
-    def _phrase_overlaps(all_overlaps, utterance):
-        # type: (dict, dict) -> Optional[str]
-
-        if not all_overlaps:
-            return None
-
-        entity_role = random.choice(['subject', 'object'])
-        overlaps = all_overlaps['_subject'] if entity_role == 'subject' else all_overlaps['_complement']
-
-        if not overlaps:
-            return None
-
-        overlaps = clean_overlaps(overlaps)
         say = random.choice(HAPPY)
-        if len(overlaps) < 2 and entity_role == 'subject':
+        if entity_role == '_subject':
             say += ' Did you know that %s also %s %s' % (utterance['triple']['_subject']['_label'],
                                                          utterance['triple']['_predicate']['_label'],
-                                                         random.choice(overlaps)['_entity']['_label'])
+                                                         overlap['_entity']['_label'])
 
-        elif len(overlaps) < 2 and entity_role == 'object':
-            say += ' Did you know that %s also %s %s' % (random.choice(overlaps)['_entity']['_label'],
+        elif entity_role == '_complement':
+            say += ' Did you know that %s also %s %s' % (overlap['_entity']['_label'],
                                                          utterance['triple']['_predicate']['_label'],
                                                          utterance['triple']['_complement']['_label'])
 
-        elif entity_role == 'subject':
-            sample = random.sample(overlaps, 2)
-            say += ' Now I know %s items that %s' \
-                   ' For example %s and %s.' % (len(overlaps),
-                                                simple_nlg(utterance['triple']['_subject']['_label'],
-                                                           utterance['triple']['_predicate']['_label']),
-                                                sample[0]['_entity']['_label'],
-                                                sample[1]['_entity']['_label'])
-
-        elif entity_role == 'object':
-            sample = random.sample(overlaps, 2)
-            types = filtered_types_names(sample[0]['_entity']['_types']) if sample[0]['_entity']['_types'] else 'things'
-            say += ' Now I know %s %s %s ' \
-                   'For example %s and %s.' % (len(overlaps), types,
-                                               simple_nlg("that", utterance['triple']['_predicate']['_label'],
-                                                          utterance['triple']['_complement']['_label']),
-                                               sample[0]['_entity']['_label'],
-                                               sample[1]['_entity']['_label'])
-
         return say
+
+    @staticmethod
+    def _phrase_trust(selected_thought: dict, utterance: dict) -> Optional[str]:
+        if not selected_thought or not selected_thought["thought_info"]:
+            return None
+
+        else:
+            trust = selected_thought["thought_info"]['value']
+
+            if float(trust) > 0.25:
+                say = random.choice(TRUST)
+            else:
+                say = random.choice(NO_TRUST)
+
+            say = f"{utterance['author']['label']}, {say}"
+
+            return say
