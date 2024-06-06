@@ -103,14 +103,14 @@ class LenkaReplier(BasicReplier):
                 elif gram_person == 'third' and '-' not in predicate:
                     predicate += 's'
 
-                if item['certaintyValue']['value'] != 'CERTAIN':  # TODO extract correct certainty marker
-                    predicate = 'maybe ' + predicate
+            if 'certaintyValue' in item and item['certaintyValue']['value'] != 'CERTAIN':  # TODO extract correct certainty marker
+                predicate = 'maybe ' + predicate
 
-                if item['polarityValue']['value'] != 'POSITIVE':
-                    if ' ' in predicate:
-                        predicate = predicate.split()[0] + ' not ' + predicate.split()[1]
-                    else:
-                        predicate = 'do not ' + predicate
+            if 'polarityValue' in item and item['polarityValue']['value'] != 'POSITIVE':
+                if ' ' in predicate:
+                    predicate = predicate.split()[0] + ' not ' + predicate.split()[1]
+                else:
+                    predicate = 'do not ' + predicate
 
                 say += subject + ' ' + predicate + ' ' + object
 
