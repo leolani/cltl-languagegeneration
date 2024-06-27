@@ -33,6 +33,18 @@ class Instruct():
         return instruct
 
 
+    def get_instruct_for_answer (self):
+        instruct = {"role": "system", "content": "You are an intelligent assistant. \
+         I will give you as input: the question, followed by the answer.\
+         You need to paraphrase the input in plain " + self._language + ". \
+         Only reply with the short paraphrase of the input and only use the subject and object from the triple in your reply as given. \
+         Do not give an explanation. \
+         Do not explain what the subject and object is. \
+         The response should be just the paraphrased text and nothing else."
+        }
+        return instruct
+
+
     def get_instruct_for_no_answer (self):
         instruct = {"role": "system", "content": "You are an intelligent assistant. \
          You were given a question but you do not have an answer from your memory.\

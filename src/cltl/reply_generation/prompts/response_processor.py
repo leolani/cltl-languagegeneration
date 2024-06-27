@@ -114,6 +114,80 @@ class PromptProcessor():
         novelty_text = author + " told me this on "+ date
         return novelty_text
 
+
+
+    def get_all_prompt_input_from_response(self, response):
+        statement = response["statement"]
+        statement_text = self.get_triple_text_from_statement(statement)
+        statement_author = self.get_author_from_statement(statement)
+        prompts = []
+        thought = response["thoughts"]
+
+        novelties = thought["_statement_novelty"]
+        for novelty in novelties:
+            input = statement_author + " claims " + statement_text + ". Also " + self.get_provenance_from_statement_novelty(
+                novelty["_provenance"])
+            prompt = [self._instruct.get_instruct_for_novelty(), {"role": "user", "content": input}]
+            prompts.append(prompt)
+
+        # @TODO
+        # novelties = thought["_entity_novelty"]
+        # for novelty in novelties:
+        #     input = statement_author+" claims "+ statement_text+". Also "+get_XXX_from_entity_novelty(novelty)
+        #     prompt = [instruct.instruct_for_novelty, {"role": "user", "content": input}]
+        #     prompts.append(prompt)
+
+        conflicts = thought["_negation_conflicts"]
+        for conflict in conflicts:
+            input = statement_author + " claims " + statement_text + ". But " + self.get_negation_conflict(conflict)
+            prompt = [self._instruct.get_instruct_for_novelty(), {"role": "user", "content": input}]
+            prompts.append(prompt)
+
+        # @TODO
+        # conflicts = thought["_complement_conflict"]
+        # for conflict in conflicts:
+        #     input = statement_author+" claims "+ statement_text+". Also "+get_complement_conflict(conflict)
+        #     inputs.append(input)
+
+        gaps = thought["_subject_gaps"]
+        if gaps["_subject"]:
+            for gap in gaps["_subject"]:
+                input = self.get_subject_gap_subject(gap)
+                prompt = [self._instruct.get_instruct_for_subject_gap(), {"role": "user", "content": input}]
+                prompts.append(prompt)
+
+            if gaps["_complement"]:
+                for gap in gaps["_complement"]:
+                    input = self.get_subject_gap_complement(gap)
+                    prompt = [self._instruct.get_instruct_for_subject_gap(), {"role": "user", "content": input}]
+                    prompts.append(prompt)
+
+        gaps = thought["_complement_gaps"]
+        if gaps["_subject"]:
+            for gap in gaps["_subject"]:
+                input = self.get_complement_gap_subject(gap)
+                prompt = [self._instruct.get_instruct_for_subject_gap(), {"role": "user", "content": input}]
+                prompts.append(prompt)
+
+            if gaps["_complement"]:
+                for gap in gaps["_complement"]:
+                    input = self.get_complement_gap_complement(gap)
+                    prompt = [self._instruct.get_instruct_for_subject_gap(), {"role": "user", "content": input}]
+                    prompts.append(prompt)
+
+        # @TODO
+        # overlaps = thought["_overlaps"]
+        # for overlap in overlaps:
+        #     input = statement_author+" claims "+ statement_text+". Also "+get_overlap_statement(overlap)
+        #     inputs.append(input)
+
+        # @TODO
+        # trust = thought["_trust"]
+        # input = statement_author+" claims "+ statement_text+". Also "+get_trust_statement(trust)
+        # inputs.append(input)
+        return prompts
+
+
     def get_all_prompt_input_from_response(self, response):
         statement = response["statement"]
         statement_text = self.get_triple_text_from_statement(statement)

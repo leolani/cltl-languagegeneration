@@ -12,7 +12,6 @@ from cltl.reply_generation.prompts.response_processor import PromptProcessor
 from cltl.reply_generation.thought_selectors.random_selector import RandomSelector
 from cltl.reply_generation.utils.phraser_utils import replace_pronouns, assign_spo, deal_with_authors, fix_entity
 from openai import OpenAI
-import prompts.response_processor as processor
 
 class LlamaReplier(BasicReplier):
     def __init__(self, thought_selector=RandomSelector(), language="English", llama_server= "http://localhost", port= "9001"):
@@ -56,7 +55,7 @@ class LlamaReplier(BasicReplier):
         self._thought_selector = thought_selector
         self._log.debug(f"Random Selector ready")
         self._processor = PromptProcessor(language)
-        self._phrase = Phraser()
+        self._phraser = Phraser()
         self._log.debug(f"Pattern phraser ready")
 
 
@@ -84,7 +83,7 @@ class LlamaReplier(BasicReplier):
 
         # Quick check if there is anything to do here
         if not brain_response['response']:
-            prompt = processor.get_no_answer_prompt(utterance)
+            prompt = self._processor.get_no_answer_prompt(utterance)
             say = self._generate_from_prompt(prompt)
             return say
 
@@ -154,6 +153,7 @@ class LlamaReplier(BasicReplier):
                         predicate = 'is'
                 elif gram_person == 'third' and '-' not in predicate:
                     predicate += 's'
+               # 'perspective': {'sentiment': 0.0, 'certainty': 1.0, 'polarity': 1.0, 'emotion': 0.0},
 
                 if item['certaintyValue']['value'] != 'CERTAIN':  # TODO extract correct certainty marker
                     predicate = 'maybe ' + predicate
@@ -171,7 +171,7 @@ class LlamaReplier(BasicReplier):
         # Remove last ' and' and return
         say = say[:-5]
         say = say.replace('-', ' ').replace('  ', ' ')
-        prompt = processor.get_answer_prompt(utterance, say)
+        prompt = self._processor.get_answer_prompt(utterance, say)
         say = self._generate_from_prompt(prompt)
         return say
 
@@ -189,13 +189,13 @@ class LlamaReplier(BasicReplier):
                 str(utterance['predicate']['label']),
                 random.choice(utterance['object']['type']))
 
-            prompt = processor.get_no_answer_prompt(say)
+            prompt = self._processor.get_no_answer_prompt(say)
             say = self._generate_from_prompt(prompt)
             return say
 
         else:
 
-            prompt = processor.get_no_answer_prompt(random.choice(NO_ANSWER))
+            prompt = self._processor.get_no_answer_prompt(random.choice(NO_ANSWER))
             say = self._generate_from_prompt(prompt)
             return say
 
@@ -233,7 +233,7 @@ class LlamaReplier(BasicReplier):
 
         if not thought_options:
             reply = self._phraser.phrase_fallback()
-            prompt = processor.get_no_answer_prompt(self._language, reply)
+            prompt = self._processor.get_no_answer_prompt(self._language, reply)
             reply = self._generate_from_prompt(prompt)
         else:
             # Select thought
@@ -250,6 +250,8 @@ class LlamaReplier(BasicReplier):
                 reply = self.reply_to_statement(brain_response, persist=persist, thought_options=thought_options,
                                                 end_recursion=end_recursion - 1)
 
+        prompt = self._processor.get_answer_prompt(utterance, say)
+        say = self._generate_from_prompt(prompt)
         return reply
 
     def reply_to_mention(self, brain_response, persist=False, thought_options=None):
