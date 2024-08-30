@@ -84,6 +84,8 @@ class ReplyGenerationService:
             logger.debug("Created reply: %s", extractor_event.signal.text)
 
     def _best_response(self, brain_responses):
+        logger.debug("Brain responses: %s", brain_responses)
+
         # Prioritize replies by utterance type first, then by replier, then choose random
         typed_responses = [(self._get_utterance_type(response), response) for response in brain_responses]
         typed_responses = filter(lambda x: x[0] in self._utterance_types, typed_responses)
@@ -91,6 +93,7 @@ class ReplyGenerationService:
         ordered_responses = [(utt_type, replier, response)
                              for utt_type, response in self._ordered_by_type(typed_responses)
                              for replier in self._repliers]
+        logger.debug("Ordered responses: %s", ordered_responses)
 
         if not ordered_responses:
             logger.debug("No responses for %s", brain_responses)

@@ -32,7 +32,6 @@ class Instruct():
         }
         return instruct
 
-
     def get_instruct_for_answer (self):
         instruct = {"role": "system", "content": "You are an intelligent assistant. \
          I will give you as input: the question, followed by the answer.\
@@ -43,7 +42,6 @@ class Instruct():
          The response should be just the paraphrased text and nothing else."
         }
         return instruct
-
 
     def get_instruct_for_no_answer (self):
         instruct = {"role": "system", "content": "You are an intelligent assistant. \

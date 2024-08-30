@@ -6,6 +6,7 @@ from cltl.commons.language_data.sentences import NO_ANSWER
 from cltl.commons.language_helpers import lexicon_lookup
 from cltl.commons.triple_helpers import filtered_types_names
 from cltl.reply_generation.api import Phraser
+from cltl.reply_generation.phrasers.pattern_phraser import PatternPhraser
 
 from cltl.reply_generation.api import BasicReplier
 from cltl.reply_generation.prompts.response_processor import PromptProcessor
@@ -55,7 +56,7 @@ class LlamaReplier(BasicReplier):
         self._thought_selector = thought_selector
         self._log.debug(f"Random Selector ready")
         self._processor = PromptProcessor(language)
-        self._phraser = Phraser()
+        self._phraser = PatternPhraser()
         self._log.debug(f"Pattern phraser ready")
 
 
@@ -78,6 +79,27 @@ class LlamaReplier(BasicReplier):
         return new_message["content"]
 
     def reply_to_question(self, brain_response):
+        # UtteranceType.QUESTION({'response': [
+        #     {'s': {'type': 'uri', 'value': 'http://cltl.nl/leolani/world/john'},
+        #      'slabel': {'type': 'literal', 'value': 'john'},
+        #      'p': {'type': 'uri', 'value': 'http://cltl.nl/leolani/n2mu/like'},
+        #      'pOriginal': {'type': 'uri', 'value': 'http://cltl.nl/leolani/n2mu/like'},
+        #      'o': {'type': 'uri', 'value': 'http://cltl.nl/leolani/world/music'},
+        #      'olabel': {'type': 'literal', 'value': 'music'},
+        #      'authorlabel': {'type': 'literal', 'value': 'human'},
+        #      'certaintyValue': {'type': 'literal', 'value': 'CERTAIN'},
+        #      'polarityValue': {'type': 'literal', 'value': 'POSITIVE'},
+        #      'sentimentValue': {'type': 'literal', 'value': 'UNDERSPECIFIED'},
+        #      'emotionValue': {'type': 'literal', 'value': 'UNDERSPECIFIED'}}],
+        #      'question': {'chat': 'f51d2acf-a7df-4156-90e4-1c00ee0ffbd5', 'turn': '022094c8-8905-422f-90d7-302df076d1c5',
+        #                  'author': {'label': 'Human', 'type': ['person'], 'uri': 'http://cltl.nl/leolani/world/human'},
+        #                  'utterance': 'Who likes music?', 'utterance_type': < UtteranceType.QUESTION: '2' >, 'position': '0-16',
+        #                       'subject': {'label': '', 'type': [], 'uri': None},
+        #                       'predicate': {'label': 'like', 'type': [], 'uri': 'http://cltl.nl/leolani/n2mu/like'},
+        #                       'object': {'label': 'music', 'type': [], 'uri': 'http://cltl.nl/leolani/world/music'},
+        #                        'perspective': {'sentiment': 0.0, 'certainty': 1.0, 'polarity': 1.0, 'emotion': 0.0},
+        #                       'context_id': 'f51d2acf-a7df-4156-90e4-1c00ee0ffbd5', 'timestamp': 1718888271633,
+        #                       'triple': ?_like_music[_->_])}, 'rdf_log_path': None})
         # TODO revise (we conjugate the predicate by doing this)
         utterance = casefold_capsule(brain_response['question'], format='natural')
 
@@ -98,6 +120,7 @@ class LlamaReplier(BasicReplier):
         gram_number = ''
         for item in brain_response['response']:
             # INITIALIZATION
+            print("THE ITEM IS:", item)
             subject, predicate, object = assign_spo(utterance, item)
 
             author = replace_pronouns(utterance['author']['label'], author=item['authorlabel']['value'])
@@ -153,16 +176,17 @@ class LlamaReplier(BasicReplier):
                         predicate = 'is'
                 elif gram_person == 'third' and '-' not in predicate:
                     predicate += 's'
-               # 'perspective': {'sentiment': 0.0, 'certainty': 1.0, 'polarity': 1.0, 'emotion': 0.0},
 
-                if item['certaintyValue']['value'] != 'CERTAIN':  # TODO extract correct certainty marker
-                    predicate = 'maybe ' + predicate
+#                'perspective': {'sentiment': 0.0, 'certainty': 1.0, 'polarity': 1.0, 'emotion': 0.0},
 
-                if item['polarityValue']['value'] != 'POSITIVE':
-                    if ' ' in predicate:
-                        predicate = predicate.split()[0] + ' not ' + predicate.split()[1]
-                    else:
-                        predicate = 'do not ' + predicate
+                # if item['certaintyValue']['value'] != 'CERTAIN':  # TODO extract correct certainty marker
+                #     predicate = 'maybe ' + predicate
+                # 
+                # if item['polarityValue']['value'] != 'POSITIVE':
+                #     if ' ' in predicate:
+                #         predicate = predicate.split()[0] + ' not ' + predicate.split()[1]
+                #     else:
+                #         predicate = 'do not ' + predicate
 
                 say += subject + ' ' + predicate + ' ' + object
 
@@ -174,6 +198,21 @@ class LlamaReplier(BasicReplier):
         prompt = self._processor.get_answer_prompt(utterance, say)
         say = self._generate_from_prompt(prompt)
         return say
+
+    #@TODO We need to make a function that gets the perspective values from responses (thoughts and answers) to prompt Llama
+    # Next is a dummy
+    def get_perspective (item:str):
+
+    #    'perspective': {'sentiment': 0.0, 'certainty': 1.0, 'polarity': 1.0, 'emotion': 0.0},
+
+        if item['certaintyValue']['value'] != 'CERTAIN':  # TODO extract correct certainty marker
+            predicate = 'maybe ' + predicate
+
+        if item['polarityValue']['value'] != 'POSITIVE':
+            if ' ' in predicate:
+                predicate = predicate.split()[0] + ' not ' + predicate.split()[1]
+            else:
+                predicate = 'do not ' + predicate
 
 
     def _phrase_no_answer_to_question(self, utterance):
@@ -192,9 +231,7 @@ class LlamaReplier(BasicReplier):
             prompt = self._processor.get_no_answer_prompt(say)
             say = self._generate_from_prompt(prompt)
             return say
-
         else:
-
             prompt = self._processor.get_no_answer_prompt(random.choice(NO_ANSWER))
             say = self._generate_from_prompt(prompt)
             return say
@@ -249,9 +286,11 @@ class LlamaReplier(BasicReplier):
             if persist and reply is None:
                 reply = self.reply_to_statement(brain_response, persist=persist, thought_options=thought_options,
                                                 end_recursion=end_recursion - 1)
-
-        prompt = self._processor.get_answer_prompt(utterance, say)
-        say = self._generate_from_prompt(prompt)
+       #@TODO verbalise the thought through Llama
+        #print("REPLY", reply)
+        #prompt = self._processor.get_utterance_from_statement(reply)
+        #reply = self._processor.get_thought_prompt(utterance, reply)
+        #reply = self._generate_from_prompt([reply])
         return reply
 
     def reply_to_mention(self, brain_response, persist=False, thought_options=None):
@@ -304,7 +343,7 @@ class LlamaReplier(BasicReplier):
 if __name__ == "__main__":
     replier = LlamaReplier(language="Dutch")
 
-    path = "../../../examples/data/thoughts-responses.json"
+    path = "/Users/piek/Desktop/d-Leolani/cltl-languagegeneration/examples/data/thoughts-responses.json"
     print(path)
     file = open(path)
     data = json.load(file)
