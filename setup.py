@@ -35,6 +35,9 @@ setup(
             'torch~=1.10.2',
             'transformers~=4.16.2',
         ],
+        "llama": [
+            'openai'
+        ],
         "service": [
             "cltl.brain",
             "cltl.emissor-data[client]",
