@@ -64,6 +64,8 @@ class Instruct():
          Do not explain what the subject and object is. \
          The response should be just the paraphrased text and nothing else."
                }
+        return instruct
+
 
     def get_instruct_for_object_gap (self):
         instruct = {"role": "system", "content": "You are an intelligent assistant. \

@@ -25,15 +25,15 @@ class PromptProcessor():
         self._instruct = Instruct(language)
 
     def get_no_answer_prompt(self, question):
-        prompt = [self._instruct.get_instruct_for_no_answer(), {"role": "user", "content": "I have no aswer for this question"+question}]
+        prompt = [self._instruct.get_instruct_for_no_answer(), {"role": "system", "content": "I have no answer for this question"+question["utterance"]}]
         return prompt
 
     def get_answer_prompt(self, question, answer):
-        prompt = [self._instruct.get_instruct_for_answer(), {"role": "user", "content": answer}]
+        prompt = [self._instruct.get_instruct_for_answer(), {"role": "system", "content": answer}]
         return prompt
 
     def get_thought_prompt(self, statement, thought):
-        prompt = [self._instruct.get_instruct_for_statement(), {"role": "user", "content": statement+thought}]
+        prompt = [self._instruct.get_instruct_for_statement(), {"role": "system", "content": statement+thought}]
         return prompt
 
     def get_utterance_from_statement (self, statement):
@@ -127,12 +127,12 @@ class PromptProcessor():
         statement_author = self.get_author_from_statement(statement)
         prompts = []
         thought = response["thoughts"]
-
+        #print("THOUGHT", thought)
         novelties = thought["_statement_novelty"]
+      #  print("novelties", novelties)
         for novelty in novelties:
-            input = statement_author + " claims " + statement_text + ". Also " + self.get_provenance_from_statement_novelty(
-                novelty["_provenance"])
-            prompt = [self._instruct.get_instruct_for_novelty(), {"role": "user", "content": input}]
+            input = statement_author + " claims " + statement_text + ". Also " + self.get_provenance_from_statement_novelty(novelty["_provenance"])
+            prompt = [self._instruct.get_instruct_for_novelty(), {"role": "system", "content": input}]
             prompts.append(prompt)
 
         # @TODO
@@ -143,9 +143,10 @@ class PromptProcessor():
         #     prompts.append(prompt)
 
         conflicts = thought["_negation_conflicts"]
+      #  print("conflicts", conflicts)
         for conflict in conflicts:
             input = statement_author + " claims " + statement_text + ". But " + self.get_negation_conflict(conflict)
-            prompt = [self._instruct.get_instruct_for_novelty(), {"role": "user", "content": input}]
+            prompt = [self._instruct.get_instruct_for_novelty(), {"role": "system", "content": input}]
             prompts.append(prompt)
 
         # @TODO
@@ -155,29 +156,39 @@ class PromptProcessor():
         #     inputs.append(input)
 
         gaps = thought["_subject_gaps"]
+       # print("_subject_gaps", gaps)
         if gaps["_subject"]:
             for gap in gaps["_subject"]:
                 input = self.get_subject_gap_subject(gap)
-                prompt = [self._instruct.get_instruct_for_subject_gap(), {"role": "user", "content": input}]
+                prompt = [self._instruct.get_instruct_for_subject_gap(), {"role": "system", "content": input}]
+             #   print(prompt)
                 prompts.append(prompt)
 
             if gaps["_complement"]:
                 for gap in gaps["_complement"]:
                     input = self.get_subject_gap_complement(gap)
-                    prompt = [self._instruct.get_instruct_for_subject_gap(), {"role": "user", "content": input}]
+                    prompt = [self._instruct.get_instruct_for_subject_gap(), {"role": "system", "content": input}]
+              #      print(prompt)
+
                     prompts.append(prompt)
 
         gaps = thought["_complement_gaps"]
+       # print("_complement_gaps", gaps)
+
         if gaps["_subject"]:
             for gap in gaps["_subject"]:
                 input = self.get_complement_gap_subject(gap)
-                prompt = [self._instruct.get_instruct_for_subject_gap(), {"role": "user", "content": input}]
+                prompt = [self._instruct.get_instruct_for_subject_gap(), {"role": "system", "content": input}]
+               # print(prompt)
+
                 prompts.append(prompt)
 
             if gaps["_complement"]:
                 for gap in gaps["_complement"]:
                     input = self.get_complement_gap_complement(gap)
-                    prompt = [self._instruct.get_instruct_for_subject_gap(), {"role": "user", "content": input}]
+                    prompt = [self._instruct.get_instruct_for_subject_gap(), {"role": "system", "content": input}]
+                #    print(prompt)
+
                     prompts.append(prompt)
 
         # @TODO
@@ -191,4 +202,3 @@ class PromptProcessor():
         # input = statement_author+" claims "+ statement_text+". Also "+get_trust_statement(trust)
         # inputs.append(input)
         return prompts
-
