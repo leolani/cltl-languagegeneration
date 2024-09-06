@@ -239,7 +239,7 @@ class LlamaReplier(BasicReplier):
             return say
 
 
-    def reply_to_statement(self, brain_response):
+    def reply_to_statement(self, brain_response, persist=False, thought_options=None):
         reply=""
         prompts = self._processor.get_all_prompt_input_from_response(brain_response)
         if prompts:
@@ -312,7 +312,7 @@ class LlamaReplier(BasicReplier):
             # Recursion if there is no answer
             # In theory we do not run into an infinite loop because there will always be a value for novelty
             if persist and reply is None:
-                reply = self.reply_to_statement(brain_response, persist=persist, thought_options=thought_options,
+                reply = self.reply_to_statement_old(brain_response, persist=persist, thought_options=thought_options,
                                                 end_recursion=end_recursion - 1)
        #@TODO verbalise the thought through Llama
         #print("REPLY", reply)
