@@ -112,7 +112,8 @@ class LenkaReplier(BasicReplier):
                 else:
                     predicate = 'do not ' + predicate
 
-                say += subject + ' ' + predicate + ' ' + object
+            ##### Adding the triple as a statement to the source attribution and perspective
+            say += subject + ' ' + predicate + ' ' + object
 
             say += ' and '
 

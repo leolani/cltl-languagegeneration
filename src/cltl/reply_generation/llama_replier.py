@@ -123,7 +123,6 @@ class LlamaReplier(BasicReplier):
         gram_number = ''
         for item in brain_response['response']:
             # INITIALIZATION
-            print("THE ITEM IS:", item)
             subject, predicate, object = assign_spo(utterance, item)
 
             author = replace_pronouns(utterance['author']['label'], author=item['authorlabel']['value'])
