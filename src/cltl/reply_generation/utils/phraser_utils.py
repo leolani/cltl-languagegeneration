@@ -39,8 +39,11 @@ def assign_spo(utterance, item):
     empty = ['', 'unknown', 'none']
 
     # INITIALIZATION
-    predicate = utterance['predicate']['label']
 
+    if utterance['predicate']['label'] is None or utterance['predicate']['label'].lower() in empty:
+        predicate = item['pOriginal']['value']
+    else:
+        predicate = utterance['predicate']['label']
     if utterance['subject']['label'] is None or utterance['subject']['label'].lower() in empty:
         subject = item['slabel']['value']
     else:

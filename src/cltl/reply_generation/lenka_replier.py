@@ -48,7 +48,8 @@ class LenkaReplier(BasicReplier):
         for item in brain_response['response']:
             # INITIALIZATION
             subject, predicate, object = assign_spo(utterance, item)
-
+            if not predicate:
+                continue
             author = replace_pronouns(utterance['author']['label'], author=item['authorlabel']['value'])
             subject = replace_pronouns(utterance['author']['label'], entity_label=subject, role='subject')
             object = replace_pronouns(utterance['author']['label'], entity_label=object, role='object')
