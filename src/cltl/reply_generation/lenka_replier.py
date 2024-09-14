@@ -50,6 +50,8 @@ class LenkaReplier(BasicReplier):
             subject, predicate, object = assign_spo(utterance, item)
             if not predicate:
                 continue
+            else:
+                predicate = predicate.replace('http://cltl.nl/leolani/n2mu/', '')
             author = replace_pronouns(utterance['author']['label'], author=item['authorlabel']['value'])
             subject = replace_pronouns(utterance['author']['label'], entity_label=subject, role='subject')
             object = replace_pronouns(utterance['author']['label'], entity_label=object, role='object')
