@@ -1,5 +1,5 @@
 import random
-
+import time
 from cltl.commons.casefolding import casefold_capsule
 from cltl.commons.language_data.sentences import NO_ANSWER
 from cltl.commons.language_helpers import lexicon_lookup
@@ -139,7 +139,73 @@ class LenkaReplier(BasicReplier):
             return say
 
         else:
-            return random.choice(NO_ANSWER)
+            say = "Nobody claimed that %s %s %s" % (
+                random.choice(utterance['subject']['label']),
+                str(utterance['predicate']['label']),
+                random.choice(utterance['object']['label']))
+            return say
+        # else:
+        #     return random.choice(NO_ANSWER)
+
+    #@TODO Next code is supposed to extract a generic query to get all knowledge for a subject or object
+    #To be called in case there is no answer for a question.
+
+    def make_fall_back_query(self, brain_response):
+        #   responses contain the original query triple
+        #  'slabel': {'type': 'literal', 'value': 'john'},
+        #  'p': {'type': 'uri', 'value': 'http://cltl.nl/leolani/n2mu/like'},
+        #  'pOriginal': {'type': 'uri', 'value': 'http://cltl.nl/leolani/n2mu/like'},
+        #  'o': {'type': 'uri', 'value': ''},
+        #  'olabel': {'type': 'literal', 'value': ''},
+
+        ### get query triple from brain_response
+        ### drop the predicate
+        ### if no object, make subject query
+        ### if no subject, turn object into subject
+        subject = ""
+        object = ""
+        triples = []
+        if 'slabel' in brain_response:
+            subject = brain_response['slabel']['value']
+        if 'olabel' in brain_response:
+            object = brain_response['olabel']['value']
+        if not subject and object:
+            subject = object
+        if subject:
+            triple = {"subject": {"label": subject, "type": [], "uri": None},
+                      "predicate": {"label": "", "type": ["n2mu"], "uri": None},
+                      "object": {"label": "", "type": [], "uri": None},
+                      "perspective": {'sentiment': float(0), 'certainty': float(1), 'polarity': float(1),
+                                      'emotion': float(0)}
+                      }
+            triples.append(triple)
+        return triples
+
+    def triple_to_capsule(self, utterance, signal):
+        capsules = []
+
+        for triple in utterance.triples:
+            self._add_uri_to_triple(triple)
+            scenario_id = signal.time.container_id
+
+            capsule = {"chat": scenario_id,
+                       "turn": signal.id,
+                       "author": self._get_author(),
+                       "utterance": utterance.transcript,
+                       "utterance_type": triple['utterance_type'],
+                       "position": "0-" + str(len(utterance.transcript)),
+                       ###
+                       "subject": triple['subject'],
+                       "predicate": triple['predicate'],
+                       "object": triple['object'],
+                       "perspective": triple["perspective"],
+                       ###
+                       "context_id": scenario_id,
+                       "timestamp": time.time_ns() // 1_000_000
+                       }
+
+            capsules.append(capsule)
+        return capsules
 
     def reply_to_statement(self, brain_response, persist=False, thought_options=None, end_recursion=5):
         """
