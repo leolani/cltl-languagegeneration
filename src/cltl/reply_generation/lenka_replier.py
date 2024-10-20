@@ -139,10 +139,11 @@ class LenkaReplier(BasicReplier):
             return say
 
         else:
-            say = "Nobody claimed that %s %s %s" % (
-                random.choice(utterance['subject']['label']),
-                str(utterance['predicate']['label']),
-                random.choice(utterance['object']['label']))
+        	say = random.choice(NO_ANSWER)
+#             say = "Nobody claimed that %s %s %s" % (
+#                 random.choice(utterance['subject']['label']),
+#                 str(utterance['predicate']['label']),
+#                 random.choice(utterance['object']['label']))
             return say
         # else:
         #     return random.choice(NO_ANSWER)

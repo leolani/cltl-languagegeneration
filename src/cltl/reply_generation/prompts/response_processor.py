@@ -67,6 +67,13 @@ class PromptProcessor():
         author = statement["author"]["label"]
         return author
 
+    #### In the case of a GAP, there is a trigger triple in the eKG that contains a "known entity".
+    #### If the known entity is the subject of the trigger triple it can either be the subject or the complement (object) in a triple with another predicate.
+    #### If a subject_gap_subject the known entity is subject in both the trigger triple and the unknown triple.
+    #### If a subject_gap_complement the known entity is subject in the trigger triple and the object in the unknown triple.
+    #### If a complement_gap_complement  the known entity is the complement in both the trigger triple and the unknown triple.
+    #### If a complement_gap_subject the known entity is object in the trigger triple and the subject in the unknown triple.
+
     def get_subject_gap_subject(self, thought):
         known_entity = thought["_known_entity"]["_label"]
         predicate = thought["_predicate"]["_label"]
