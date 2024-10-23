@@ -15,8 +15,8 @@ from cltl.reply_generation.utils.phraser_utils import replace_pronouns, assign_s
 #LLAMA_MODEL = "llama3.2:1b"
 LLAMA_MODEL = "llama3.2"
 
-INSTRUCT = {'role': 'system', 'content': 'Paraphrase the user input in a plain simple English. \
-                                         The input can be a list of statements. \
+INSTRUCT = {'role': 'system', 'content': 'Paraphrase the user input in plain simple English. \
+                                         The input can be a statement, a list of statements or a question. \
                                          Use at most two sentence. \
                                          Be CONCISE and do NOT hallucinate.'}
 CONTENT_TYPE_SEPARATOR = ';'
