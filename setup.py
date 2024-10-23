@@ -36,7 +36,8 @@ setup(
             'transformers~=4.16.2',
         ],
         "llama": [
-            'openai'
+            'openai',
+            'ollama'
         ],
         "service": [
             "cltl.brain",
