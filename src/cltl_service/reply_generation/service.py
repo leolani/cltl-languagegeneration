@@ -22,16 +22,6 @@ class ReplyGenerationService:
     def from_config(cls, repliers: List[BasicReplier], emissor_data: EmissorDataClient, event_bus: EventBus, resource_manager: ResourceManager,
                     config_manager: ConfigurationManager):
         config = config_manager.get_config("cltl.reply_generation")
-
-        if "instruct" in config:
-            instruct = config.get("instruct")
-        else:
-            instruct = None
-        if "model" in config:
-            model = config.get("model")
-        else:
-            model = None
-
         thought_options = config.get("thought_options", multi=True) \
                 if "thought_options" in config \
                 else ['_complement_conflict', '_negation_conflicts', '_statement_novelty', '_entity_novelty',
@@ -42,10 +32,10 @@ class ReplyGenerationService:
 
         return cls(config.get("topic_input"), config.get("topic_output"),
                    config.get("intentions", multi=True), config.get("topic_intention"),
-                   repliers, utterance_types, thought_options, model, instruct, emissor_data, event_bus, resource_manager)
+                   repliers, utterance_types, thought_options, emissor_data, event_bus, resource_manager)
 
     def __init__(self, input_topic: str, output_topic: str, intentions: Iterable[str], intention_topic: str,
-                 repliers: List[BasicReplier], utterance_types: List[UtteranceType], thought_options: List[str], model:str, instruct:str,
+                 repliers: List[BasicReplier], utterance_types: List[UtteranceType], thought_options: List[str],
                  emissor_data: EmissorDataClient, event_bus: EventBus, resource_manager: ResourceManager):
         self._repliers = repliers
         self._utterance_types = utterance_types
@@ -59,8 +49,6 @@ class ReplyGenerationService:
         self._output_topic = output_topic
         self._intentions = intentions
         self._intention_topic = intention_topic
-        self._instruct = instruct
-        self._model = model
         self._topic_worker = None
 
     @property

@@ -22,7 +22,7 @@ INSTRUCT = {'role': 'system', 'content': 'Paraphrase the user input in a plain s
 CONTENT_TYPE_SEPARATOR = ';'
 
 class LenkaReplier(BasicReplier):
-    def __init__(self,  model=None, instruct=None, paraphrase= False, thought_selector = RandomSelector()):
+    def __init__(self,  model=None, instruct=None, paraphrase= False, temperature=0.1, max_tokens=250, thought_selector = RandomSelector()):
         # type: (ThoughtSelector) -> None
         """
         Generate natural language based on structured data
@@ -38,6 +38,7 @@ class LenkaReplier(BasicReplier):
         self._log.debug(f"Random Selector ready")
         self._phraser = PatternPhraser()
         self._log.debug(f"Pattern phraser ready")
+        self._llamalize = False
         if paraphrase:
             self._llamalize = True
             if model:
@@ -49,20 +50,18 @@ class LenkaReplier(BasicReplier):
             else:
                 self._instruct = INSTRUCT
             self._llm = ChatOllama(
-                            model = LLAMA_MODEL,
-                            temperature = 0.1,
-                            num_predict = 256,
+                            model = self._model,
+                            temperature = temperature,
+                            num_predict = max_tokens,
                             # other params ...
                         )
 
     def llamalize_reply(self, reply):
-        print('reply', reply)
         response = reply
         answer = {'role': 'user', 'content': reply}
         prompt = [self._instruct, answer]
         if reply:
             paraphrase = self._llm.invoke(prompt)
-            print('paraphrase', paraphrase.content)
             if paraphrase:
                 response = paraphrase.content
         return response
