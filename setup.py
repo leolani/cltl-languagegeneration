@@ -37,7 +37,8 @@ setup(
         ],
         "llama": [
             'openai',
-            'ollama'
+            'ollama',
+            'langchain_ollama',
         ],
         "service": [
             "cltl.brain",
