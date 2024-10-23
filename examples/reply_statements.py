@@ -12,5 +12,6 @@ scenario = json.load(f)
 replier = LenkaReplier()
 
 for brain_response in tqdm(scenario):
+    print(brain_response)
     reply = replier.reply_to_statement(brain_response, persist=True)
     print(reply)

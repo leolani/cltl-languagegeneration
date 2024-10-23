@@ -1,5 +1,6 @@
 import random
 import time
+from langchain_ollama import ChatOllama
 from cltl.commons.casefolding import casefold_capsule
 from cltl.commons.language_data.sentences import NO_ANSWER
 from cltl.commons.language_helpers import lexicon_lookup
@@ -10,6 +11,10 @@ from cltl.reply_generation.phrasers.pattern_phraser import PatternPhraser
 from cltl.reply_generation.thought_selectors.random_selector import RandomSelector
 from cltl.reply_generation.utils.phraser_utils import replace_pronouns, assign_spo, deal_with_authors, fix_entity
 
+# to use ollama pull the model from the terminal in the venv: ollama pull <model-name>
+LLAMA_MODEL = "llama3.2:1b"
+INSTRUCT = {'role': 'system', 'content': 'Paraphrase the user input in a plain simple English. Use at most two sentence. Be concise and do not hallucinate".'}
+CONTENT_TYPE_SEPARATOR = ';'
 
 class LenkaReplier(BasicReplier):
     def __init__(self, thought_selector = RandomSelector()):
@@ -27,6 +32,25 @@ class LenkaReplier(BasicReplier):
         self._log.debug(f"Random Selector ready")
         self._phraser = PatternPhraser()
         self._log.debug(f"Pattern phraser ready")
+        self._llamalize = True
+        self._llm = ChatOllama(
+                        model = LLAMA_MODEL,
+                        temperature = 0.2,
+                        num_predict = 256,
+                        # other params ...
+                    )
+
+    def llamalize_reply(self, reply):
+        print('reply', reply)
+        response = reply
+        answer = {'role': 'user', 'content': reply}
+        prompt = [INSTRUCT, answer]
+        if reply:
+            paraphrase = self._llm.invoke(prompt)
+            print('paraphrase', paraphrase.content)
+            if paraphrase:
+                response = paraphrase.content
+        return response
 
     def reply_to_question(self, brain_response):
         # Quick check if there is anything to do here
@@ -122,7 +146,10 @@ class LenkaReplier(BasicReplier):
 
         # Remove last ' and' and return
         say = say[:-5]
-        return say.replace('-', ' ').replace('  ', ' ')
+        say = say.replace('-', ' ').replace('  ', ' ')
+        if self._llamalize:
+            say = self.llamalize_reply(say)
+        return say
 
     def _phrase_no_answer_to_question(self, utterance):
         self._log.info(f"Empty response")
@@ -142,6 +169,8 @@ class LenkaReplier(BasicReplier):
 #                 random.choice(utterance['subject']['label']),
 #                 str(utterance['predicate']['label']),
 #                 random.choice(utterance['object']['label']))
+        if self._llamalize:
+            say = self.llamalize_reply(say)
         return say
         # else:
         #     return random.choice(NO_ANSWER)
@@ -253,7 +282,8 @@ class LenkaReplier(BasicReplier):
             if persist and reply is None:
                 reply = self.reply_to_statement(brain_response, persist=persist, thought_options=thought_options,
                                                 end_recursion=end_recursion - 1)
-
+        if self._llamalize:
+            reply = self.llamalize_reply(reply)
         return reply
 
     def reply_to_mention(self, brain_response, persist=False, thought_options=None):
@@ -300,4 +330,6 @@ class LenkaReplier(BasicReplier):
             if persist and reply is None:
                 reply = self.reply_to_mention(brain_response, persist=persist, thought_options=thought_options)
 
+        if self._llamalize:
+            reply = self.llamalize_reply(reply)
         return reply

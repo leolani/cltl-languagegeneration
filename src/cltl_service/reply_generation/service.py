@@ -17,9 +17,6 @@ from cltl.reply_generation.api import BasicReplier
 
 logger = logging.getLogger(__name__)
 
-
-CONTENT_TYPE_SEPARATOR = ';'
-
 class ReplyGenerationService:
     @classmethod
     def from_config(cls, repliers: List[BasicReplier], emissor_data: EmissorDataClient, event_bus: EventBus, resource_manager: ResourceManager,
@@ -53,7 +50,7 @@ class ReplyGenerationService:
         self._output_topic = output_topic
         self._intentions = intentions
         self._intention_topic = intention_topic
-
+        self._llm= "llama3.2:1b"
         self._topic_worker = None
 
     @property
@@ -100,7 +97,6 @@ class ReplyGenerationService:
             return None
 
         replies = map(self._get_reply, *zip(*ordered_responses))
-
         return next(filter(None, replies), None)
 
     def _ordered_by_type(self, typed_responses: Tuple[UtteranceType, str]) -> Tuple[UtteranceType, str]:
