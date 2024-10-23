@@ -12,12 +12,17 @@ from cltl.reply_generation.thought_selectors.random_selector import RandomSelect
 from cltl.reply_generation.utils.phraser_utils import replace_pronouns, assign_spo, deal_with_authors, fix_entity
 
 # to use ollama pull the model from the terminal in the venv: ollama pull <model-name>
-LLAMA_MODEL = "llama3.2:1b"
-INSTRUCT = {'role': 'system', 'content': 'Paraphrase the user input in a plain simple English. Use at most two sentence. Be concise and do not hallucinate".'}
+#LLAMA_MODEL = "llama3.2:1b"
+LLAMA_MODEL = "llama3.2"
+
+INSTRUCT = {'role': 'system', 'content': 'Paraphrase the user input in a plain simple English. \
+                                         The input can be a list of statements. \
+                                         Use at most two sentence. \
+                                         Be CONCISE and do NOT hallucinate.'}
 CONTENT_TYPE_SEPARATOR = ';'
 
 class LenkaReplier(BasicReplier):
-    def __init__(self, thought_selector = RandomSelector()):
+    def __init__(self,  model=None, instruct=None, paraphrase= False, thought_selector = RandomSelector()):
         # type: (ThoughtSelector) -> None
         """
         Generate natural language based on structured data
@@ -26,25 +31,35 @@ class LenkaReplier(BasicReplier):
         ----------
         thought_selector: ThoughtSelector
             Thought selector to pick thought type for the reply.
+            :type llama_model: object
         """
         super(LenkaReplier, self).__init__()
         self._thought_selector = thought_selector
         self._log.debug(f"Random Selector ready")
         self._phraser = PatternPhraser()
         self._log.debug(f"Pattern phraser ready")
-        self._llamalize = True
-        self._llm = ChatOllama(
-                        model = LLAMA_MODEL,
-                        temperature = 0.2,
-                        num_predict = 256,
-                        # other params ...
-                    )
+        if paraphrase:
+            self._llamalize = True
+            if model:
+                self._model =  model
+            else:
+                self._model = LLAMA_MODEL
+            if instruct:
+                self._instruct =  instruct
+            else:
+                self._instruct = INSTRUCT
+            self._llm = ChatOllama(
+                            model = LLAMA_MODEL,
+                            temperature = 0.1,
+                            num_predict = 256,
+                            # other params ...
+                        )
 
     def llamalize_reply(self, reply):
         print('reply', reply)
         response = reply
         answer = {'role': 'user', 'content': reply}
-        prompt = [INSTRUCT, answer]
+        prompt = [self._instruct, answer]
         if reply:
             paraphrase = self._llm.invoke(prompt)
             print('paraphrase', paraphrase.content)

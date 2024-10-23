@@ -9,7 +9,7 @@ scenario_json_file = './data/' + scenario_file_name
 f = open(scenario_json_file, )
 scenario = json.load(f)
 
-replier = LenkaReplier()
+replier = LenkaReplier(paraphrase=True)
 
 for brain_response in tqdm(scenario):
     print(brain_response)
