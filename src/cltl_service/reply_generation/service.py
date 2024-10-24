@@ -71,8 +71,17 @@ class ReplyGenerationService:
         self._topic_worker = None
 
     def _process(self, event: Event[List[dict]]):
-        brain_responses = [brain_response_to_json(brain_response) for brain_response in event.payload]
-        response = self._best_response(brain_responses)
+        response = None
+        for brain_response in event.payload:
+	        if 'text_response' in brain_response:
+	        	for replier in self._repliers:
+	        		print('brain_response:', brain_response)
+	        		text = brain_response['text_response']
+	        		response = replier.llamalize_reply(text)
+	        		break
+        if not response:
+        	brain_responses = [brain_response_to_json(brain_response) for brain_response in event.payload]
+        	response = self._best_response(brain_responses)
         if response:
             extractor_event = self._create_payload(response)
             self._event_bus.publish(self._output_topic, Event.for_payload(extractor_event))

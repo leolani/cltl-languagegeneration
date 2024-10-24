@@ -117,6 +117,10 @@ class BasicReplier(object):
     def phraser(self):
         return self._phraser
 
+
+    def llamalize_reply(self, text_response):
+        raise NotImplementedError()
+
     def reply_to_question(self, brain_response):
         raise NotImplementedError()
 
