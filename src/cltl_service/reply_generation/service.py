@@ -17,18 +17,20 @@ from cltl.reply_generation.api import BasicReplier
 
 logger = logging.getLogger(__name__)
 
+
 class ReplyGenerationService:
     @classmethod
-    def from_config(cls, repliers: List[BasicReplier], emissor_data: EmissorDataClient, event_bus: EventBus, resource_manager: ResourceManager,
+    def from_config(cls, repliers: List[BasicReplier], emissor_data: EmissorDataClient, event_bus: EventBus,
+                    resource_manager: ResourceManager,
                     config_manager: ConfigurationManager):
         config = config_manager.get_config("cltl.reply_generation")
         thought_options = config.get("thought_options", multi=True) \
-                if "thought_options" in config \
-                else ['_complement_conflict', '_negation_conflicts', '_statement_novelty', '_entity_novelty',
-                      '_subject_gaps', '_complement_gaps', '_overlaps', '_trust']
+            if "thought_options" in config \
+            else ['_complement_conflict', '_negation_conflicts', '_statement_novelty', '_entity_novelty',
+                  '_subject_gaps', '_complement_gaps', '_overlaps', '_trust']
         utterance_types = [UtteranceType[t.upper()] for t in config.get("utterance_types", multi=True)] \
-                if "utterance_types" in config \
-                else [UtteranceType.QUESTION, UtteranceType.STATEMENT, UtteranceType.TEXT_MENTION]
+            if "utterance_types" in config \
+            else [UtteranceType.QUESTION, UtteranceType.STATEMENT, UtteranceType.TEXT_MENTION]
 
         return cls(config.get("topic_input"), config.get("topic_output"),
                    config.get("intentions", multi=True), config.get("topic_intention"),
@@ -58,7 +60,7 @@ class ReplyGenerationService:
     def start(self, timeout=30):
         self._topic_worker = TopicWorker([self._input_topic], self._event_bus, provides=[self._output_topic],
                                          resource_manager=self._resource_manager, processor=self._process,
-                                         intentions=self._intentions, intention_topic = self._intention_topic,
+                                         intentions=self._intentions, intention_topic=self._intention_topic,
                                          name=self.__class__.__name__)
         self._topic_worker.start().wait()
 
@@ -73,22 +75,22 @@ class ReplyGenerationService:
     def _process(self, event: Event[List[dict]]):
         response = None
         for brain_response in event.payload:
-	        if 'text_response' in brain_response:
-	        	for replier in self._repliers:
-	        		print('brain_response:', brain_response)
-	        		text = brain_response['text_response']
-	        		response = replier.llamalize_reply(text)
-	        		break
+            if 'text_response' in brain_response:
+                for replier in self._repliers:
+                    #print('brain_response:', brain_response)
+                    text = brain_response['text_response']
+                    response = replier.llamalize_reply(text)
+                    break
         if not response:
-        	brain_responses = [brain_response_to_json(brain_response) for brain_response in event.payload]
-        	response = self._best_response(brain_responses)
+            brain_responses = [brain_response_to_json(brain_response) for brain_response in event.payload]
+            response = self._best_response(brain_responses)
         if response:
             extractor_event = self._create_payload(response)
             self._event_bus.publish(self._output_topic, Event.for_payload(extractor_event))
             logger.debug("Created reply: %s", extractor_event.signal.text)
 
     def _best_response(self, brain_responses):
-       # logger.debug("Brain responses: %s", brain_responses)
+        # logger.debug("Brain responses: %s", brain_responses)
 
         # Prioritize replies by utterance type first, then by replier, then choose random
         typed_responses = [(self._get_utterance_type(response), response) for response in brain_responses]
@@ -97,7 +99,7 @@ class ReplyGenerationService:
         ordered_responses = [(utt_type, replier, response)
                              for utt_type, response in self._ordered_by_type(typed_responses)
                              for replier in self._repliers]
-      #  logger.debug("Ordered responses: %s", ordered_responses)
+        #  logger.debug("Ordered responses: %s", ordered_responses)
 
         if not ordered_responses:
             logger.debug("No responses for %s", brain_responses)
@@ -150,4 +152,3 @@ class ReplyGenerationService:
         signal = TextSignal.for_scenario(scenario_id, timestamp_now(), timestamp_now(), None, response)
 
         return TextSignalEvent.for_agent(signal)
-
