@@ -1,5 +1,7 @@
 import random
 import time
+
+import ollama
 from langchain_ollama import ChatOllama
 from cltl.commons.casefolding import casefold_capsule
 from cltl.commons.language_data.sentences import NO_ANSWER
@@ -49,6 +51,7 @@ class LenkaReplier(BasicReplier):
                 self._instruct =  instruct
             else:
                 self._instruct = INSTRUCT
+            ollama.pull(model)
             self._llm = ChatOllama(
                             model = self._model,
                             temperature = temperature,
