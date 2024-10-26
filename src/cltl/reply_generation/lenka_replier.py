@@ -41,6 +41,7 @@ class LenkaReplier(BasicReplier):
         self._phraser = PatternPhraser()
         self._log.debug(f"Pattern phraser ready")
         self._llamalize = False
+        self._instruct = INSTRUCT
         if paraphrase:
             self._llamalize = True
             if model:
@@ -48,9 +49,7 @@ class LenkaReplier(BasicReplier):
             else:
                 self._model = LLAMA_MODEL
             if instruct:
-                self._instruct =  instruct
-            else:
-                self._instruct = INSTRUCT
+                self._instruct = instruct
             ollama.pull(model)
             self._llm = ChatOllama(
                             model = self._model,
