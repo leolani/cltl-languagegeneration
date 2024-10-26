@@ -61,12 +61,13 @@ class LenkaReplier(BasicReplier):
 
     def llamalize_reply(self, reply):
         response = reply
-        answer = {'role': 'user', 'content': reply}
-        prompt = [self._instruct, answer]
-        if reply:
-            paraphrase = self._llm.invoke(prompt)
-            if paraphrase:
-                response = paraphrase.content
+        if self._llamalize:
+            answer = {'role': 'user', 'content': reply}
+            prompt = [self._instruct, answer]
+            if reply:
+                paraphrase = self._llm.invoke(prompt)
+                if paraphrase:
+                    response = paraphrase.content
         return response
 
     def reply_to_question(self, brain_response):
