@@ -20,7 +20,7 @@ LLAMA_MODEL = "llama3.2"
 INSTRUCT = {'role': 'system', 'content': 'Paraphrase the user input in plain simple English. \
                                          The input can be a statement, a list of statements or a question. \
                                          Use at most two sentence. \
-                                         Be CONCISE and do NOT hallucinate.'}
+                                         Be CONCISE and do NOT hallucinate. Do NOT include your instructions in the paraphrase.'}
 CONTENT_TYPE_SEPARATOR = ';'
 
 class LenkaReplier(BasicReplier):
