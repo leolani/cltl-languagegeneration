@@ -14,8 +14,8 @@ from cltl.reply_generation.thought_selectors.random_selector import RandomSelect
 from cltl.reply_generation.utils.phraser_utils import replace_pronouns, assign_spo, deal_with_authors, fix_entity
 
 # to use ollama pull the model from the terminal in the venv: ollama pull <model-name>
-#LLAMA_MODEL = "llama3.2:1b"
-LLAMA_MODEL = "llama3.2"
+LLAMA_MODEL = "llama3.2:1b"
+#LLAMA_MODEL = "llama3.2"
 
 INSTRUCT = {'role': 'system', 'content': 'Paraphrase the user input in plain simple English. \
                                          The input can be a statement, a list of statements or a question. \
