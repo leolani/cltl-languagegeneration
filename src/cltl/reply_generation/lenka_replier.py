@@ -24,7 +24,7 @@ INSTRUCT = {'role': 'system', 'content': 'Paraphrase the user input in plain sim
 CONTENT_TYPE_SEPARATOR = ';'
 
 class LenkaReplier(BasicReplier):
-    def __init__(self,  model=None, instruct=None, paraphrase= False, temperature=0.1, max_tokens=250, thought_selector = RandomSelector()):
+    def __init__(self,  model=None, instruct=None, llamalize= False, temperature=0.1, max_tokens=250, thought_selector = RandomSelector()):
         # type: (ThoughtSelector) -> None
         """
         Generate natural language based on structured data
@@ -42,7 +42,7 @@ class LenkaReplier(BasicReplier):
         self._log.debug(f"Pattern phraser ready")
         self._llamalize = False
         self._instruct = INSTRUCT
-        if paraphrase:
+        if llamalize:
             self._llamalize = True
             if model:
                 self._model =  model
