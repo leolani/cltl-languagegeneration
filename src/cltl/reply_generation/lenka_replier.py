@@ -61,13 +61,20 @@ class LenkaReplier(BasicReplier):
     def llamalize_reply(self, reply):
         response = reply
         if self._llamalize:
+            self._log.info(f"Before llamatize: {response}")
             answer = {'role': 'user', 'content': reply}
             prompt = [self._instruct, answer]
+            self._log.info(f"Prompt for llama: {prompt}")
             if reply:
                 paraphrase = self._llm.invoke(prompt)
                 if paraphrase:
+                    self._log.info(f"After llamatize:: {paraphrase}")
                     response = paraphrase.content
+                    self._log.info(f"After llamatize:: {response}")
+            else:
+                self._log.info(f"No reply to llamatize!")
         return response
+
 
     def reply_to_question(self, brain_response):
         # Quick check if there is anything to do here
@@ -182,7 +189,7 @@ class LenkaReplier(BasicReplier):
                 random.choice(utterance['object']['type']))
         else:
             say = random.choice(NO_ANSWER)
-#             say = "Nobody claimed that %s %s %s" % (
+#           say = "Nobody claimed that %s %s %s" % (
 #                 random.choice(utterance['subject']['label']),
 #                 str(utterance['predicate']['label']),
 #                 random.choice(utterance['object']['label']))
@@ -218,8 +225,8 @@ class LenkaReplier(BasicReplier):
             subject = object
         if subject:
             triple = {"subject": {"label": subject, "type": [], "uri": None},
-                      "predicate": {"label": "", "type": ["n2mu"], "uri": None},
-                      "object": {"label": "", "type": [], "uri": None},
+                      "predicate": {"label": "", "type": [], "uri": None},
+                      "object": {"label": "", "type": ["n2mu"], "uri": None},
                       "perspective": {'sentiment': float(0), 'certainty': float(1), 'polarity': float(1),
                                       'emotion': float(0)}
                       }
