@@ -62,19 +62,19 @@ class LenkaReplier(BasicReplier):
         response = reply
         if self._llamalize:
             self._log.info(f"Before llamatize: {response}")
-            answer = {'role': 'user', 'content': reply}
-            prompt = [self._instruct, answer]
+            input = {'role': 'user', 'content': reply}
+            prompt = [self._instruct, input]
             self._log.info(f"Prompt for llama: {prompt}")
             if reply:
+                response = "My original response was: "+reply+". "
                 paraphrase = self._llm.invoke(prompt)
                 if paraphrase:
                     self._log.info(f"After llamatize:: {paraphrase}")
-                    response = paraphrase.content
+                    response += "This is how Llama paraphrased it: " + paraphrase.content
                     self._log.info(f"After llamatize:: {response}")
             else:
                 self._log.info(f"No reply to llamatize!")
         return response
-
 
     def reply_to_question(self, brain_response):
         # Quick check if there is anything to do here
