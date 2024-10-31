@@ -24,7 +24,7 @@ INSTRUCT = {'role': 'system', 'content': 'Paraphrase the user input in plain sim
 CONTENT_TYPE_SEPARATOR = ';'
 
 class LenkaReplier(BasicReplier):
-    def __init__(self,  model=None, instruct=None, llamalize= False, temperature=0.1, max_tokens=250, thought_selector = RandomSelector()):
+    def __init__(self,  model=None, instruct=None, llamalize= False, temperature=0.1, max_tokens=250, show_lenka=False, thought_selector = RandomSelector()):
         # type: (ThoughtSelector) -> None
         """
         Generate natural language based on structured data
@@ -41,6 +41,7 @@ class LenkaReplier(BasicReplier):
         self._phraser = PatternPhraser()
         self._log.debug(f"Pattern phraser ready")
         self._llamalize = False
+        self._show_original = show_lenka
         self._instruct = INSTRUCT
         if llamalize:
             self._llamalize = True
@@ -66,11 +67,15 @@ class LenkaReplier(BasicReplier):
             prompt = [self._instruct, input]
             self._log.info(f"Prompt for llama: {prompt}")
             if reply:
-                response = "My original response was: "+reply+". "
+                if self._show_original:
+                    response = "My original response was: "+reply+". "
                 paraphrase = self._llm.invoke(prompt)
                 if paraphrase:
                     self._log.info(f"After llamatize:: {paraphrase}")
-                    response += "This is how Llama paraphrased it: " + paraphrase.content
+                    if self._show_original:
+                        response += "This is how Llama paraphrased it: " + paraphrase.content
+                    else:
+                        response = paraphrase.content
                     self._log.info(f"After llamatize:: {response}")
             else:
                 self._log.info(f"No reply to llamatize!")
