@@ -106,6 +106,9 @@ class LenkaReplier(BasicReplier):
             elif "http://groundedannotationframework.org/gaf#" in predicate:
                 ### We skip the mentions because it clutters the output
                 continue
+            elif "http://groundedannotationframework.org/grasp#" in predicate:
+                ### We skip the mentions because it clutters the output
+                continue
             elif "http://semanticweb.cs.vu.nl/2009/11/sem/" in predicate:
                 ### We skip SEM because it clutters the output
                 continue
@@ -113,7 +116,7 @@ class LenkaReplier(BasicReplier):
                 ### We skip RDF because it clutters the output
                 continue
             elif "http://www.w3.org/2002/07/owl#sameAs" in predicate:
-                ### We skip RDF because it clutters the output
+                ### We skip owl because it clutters the output
                 continue
             else:
                 predicate = predicate.replace('http://cltl.nl/leolani/n2mu/', '')
