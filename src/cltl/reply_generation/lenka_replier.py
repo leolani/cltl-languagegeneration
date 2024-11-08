@@ -120,6 +120,8 @@ class LenkaReplier(BasicReplier):
                 continue
             else:
                 predicate = predicate.replace('http://cltl.nl/leolani/n2mu/', '')
+                predicate = predicate.replace('http://www.w3.org/2000/01/rdf', '')
+                predicate = predicate.replace('schema#label', '')
 
             author = replace_pronouns(utterance['author']['label'], author=item['authorlabel']['value'])
             subject = replace_pronouns(utterance['author']['label'], entity_label=subject, role='subject')
