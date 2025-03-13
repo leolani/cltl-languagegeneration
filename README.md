@@ -6,7 +6,8 @@ natural language.
 ## Description
 
 This package contains the functionality to transform structure data into natural language. Either by replying to
-questions or phrasing thoughts.
+questions or phrasing thoughts. Both answers to questions and thoughts are represented in JSON. Questions are mapped to SPARQL queries and the SPARQL results are mapped to JSON.
+Thoughts are the results of predefined SPARQL queries reflecting inferencing on the graph.
 
 ## Getting started
 
@@ -57,7 +58,7 @@ For these example scripts, you need
 
 ## Contributing
 
-Contributions are what make the open source community such an amazing place to be learn, inspire, and create. Any
+Contributions are what make the open source community such an amazing place to learn, inspire, and create. Any
 contributions you make are **greatly appreciated**.
 
 1. Fork the Project

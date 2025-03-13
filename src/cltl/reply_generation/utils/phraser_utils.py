@@ -42,8 +42,11 @@ def assign_spo(utterance, item):
     empty = ['', 'unknown', 'none']
 
     # INITIALIZATION
-    predicate = utterance['predicate']['label']
 
+    if utterance['predicate']['label'] is None or utterance['predicate']['label'].lower() in empty:
+        predicate = item['pOriginal']['value']
+    else:
+        predicate = utterance['predicate']['label']
     if utterance['subject']['label'] is None or utterance['subject']['label'].lower() in empty:
         subject = item['slabel']['value']
     else:
@@ -74,7 +77,7 @@ def deal_with_authors(author, previous_author, predicate, previous_predicate, sa
 
 def fix_entity(entity, speaker):
     new_ent = ''
-    if '-' in entity:
+    if entity and '-' in entity:
         entity_tokens = entity.split('-')
 
         for word in entity_tokens:

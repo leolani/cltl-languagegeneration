@@ -4,12 +4,15 @@ from typing import Optional
 from cltl.commons.language_data.sentences import NEW_KNOWLEDGE, EXISTING_KNOWLEDGE, CONFLICTING_KNOWLEDGE, \
     CURIOSITY, HAPPY
 from cltl.commons.triple_helpers import filtered_types_names
+from langchain_ollama import ChatOllama
 
 from cltl.reply_generation.api import Phraser
 from cltl.reply_generation.utils.phraser_utils import replace_pronouns, clean_overlaps
 
+LLAMA_MODEL = ChatOllama(model="llama3.2", temperature=0.1)
 
-class PatternPhraser(Phraser):
+
+class LlamaPhraser(Phraser):
 
     def __init__(self):
         # type: () -> None
@@ -21,6 +24,34 @@ class PatternPhraser(Phraser):
         """
 
         super(Phraser, self).__init__()
+
+    @staticmethod
+    def get_triple_text_from_statement(statement):
+        triple = statement["triple"]
+        triple_text = triple["_subject"]["_label"] + ", " + triple["_predicate"]["_label"] + ", " + \
+                      triple["_complement"]["_label"]
+        return triple_text
+
+    @staticmethod
+    def get_perspective_from_statement(statement):
+        perspective = statement["perspective"]
+        perspective_text = ""
+        if not perspective['_certainty'] == 'UNDERSPECIFIED':
+            perspective_text += perspective['_certainty'] + ", "
+        if perspective['_polarity'] == 'POSITIVE':
+            perspective_text += 'believes' + ", "
+        elif perspective['_polarity'] == 'NEGATIVE':
+            perspective_text += 'denies' + ", "
+        if not perspective['_sentiment'] == 'NEUTRAL':
+            perspective_text += perspective['_sentiment'] + ", "
+        if not perspective['_emotion'] == 'UNDERSPECIFIED':
+            perspective_text += perspective['_emotion'] + ", "
+        return perspective_text
+
+    @staticmethod
+    def get_source_from_statement(statement):
+        author = statement["author"]["label"]
+        return author
 
     @staticmethod
     def _phrase_cardinality_conflicts(conflicts, utterance):
@@ -102,7 +133,7 @@ class PatternPhraser(Phraser):
                 #                                           utterance['triple']['_predicate']['_label'])
 
                 say += ' Ik wist niet %s dat %s %s' % (any_type, utterance['triple']['_subject']['_label'],
-                                                          utterance['triple']['_predicate']['_label'])
+                                                       utterance['triple']['_predicate']['_label'])
 
             elif entity_role == 'object':
                 # Checked
@@ -110,7 +141,7 @@ class PatternPhraser(Phraser):
                 #                                               utterance['triple']['_complement']['_label'])
 
                 say += ' Ik wist niet dat iemand %s %s' % (utterance['triple']['_predicate']['_label'],
-                                                              utterance['triple']['_complement']['_label'])
+                                                           utterance['triple']['_complement']['_label'])
         # I already knew this
         else:
             say = random.choice(EXISTING_KNOWLEDGE)
@@ -118,7 +149,7 @@ class PatternPhraser(Phraser):
 
             # Checked
             say += ' %s  heeft me dat verteld op %s' % (novelty['_provenance']['_author']['_label'],
-                                                   novelty['_provenance']['_date'])
+                                                        novelty['_provenance']['_date'])
             # say += ' %s told me about it in %s' % (novelty['_provenance']['_author']['_label'],
             #                                        novelty['_provenance']['_date'])
 
@@ -173,23 +204,23 @@ class PatternPhraser(Phraser):
         say = random.choice(CURIOSITY)
 
         if entity_role == 'subject':
-            if 'is ' in gap['_predicate']['_label'] or ' is' in gap['_predicate']['_label']:
-                say += ' Is there a %s that %s %s?' % (filtered_types_names(gap['_target_entity_type']['_types']),
-                                                       gap['_predicate']['_label'],
-                                                       gap['_known_entity']['_label'])
-            elif ' of' in gap['_predicate']['_label']:
-                say += ' Is there a %s that %s is %s?' % (filtered_types_names(gap['_target_entity_type']['_types']),
-                                                          gap['_known_entity']['_label'],
-                                                          gap['_predicate']['_label'])
-            elif ' ' in gap['_predicate']['_label']:
-                say += ' Is there a %s that is %s %s?' % (filtered_types_names(gap['_target_entity_type']['_types']),
-                                                          gap['_predicate']['_label'],
-                                                          gap['_known_entity']['_label'])
-            else:
-                # Checked
-                say += ' Has %s %s %s?' % (gap['_known_entity']['_label'],
-                                           gap['_predicate']['_label'],
-                                           filtered_types_names(gap['_target_entity_type']['_types']))
+            UTTERANCE_TYPE = "question"
+            prompt_subject_gap = {"role": "system", "content": f"You are an intelligent assistant. \
+                 I will give you as input: a triple with a subject, a predicate and a type of object.\
+                 You need to paraphrase the input in plain English as a {UTTERANCE_TYPE} for the object. \
+                 Use who for the type person, where for the type location, when for the type time and what for everything else. \
+                 Only reply with the short paraphrase of the input. \
+                 Do not give an explanation. \
+                 Do not explain what the subject and object is. \
+                 The response should be just the paraphrased text and nothing else."}
+
+            triple_text = f"{gap['_known_entity']['_label']} " \
+                          f"{gap['_predicate']['_label']} " \
+                          f"{filtered_types_names(gap['_target_entity_type']['_types']).upper()}"
+            prompt = [prompt_subject_gap, {"role": "user", "content": triple_text}]
+            response = LLAMA_MODEL.invoke(prompt)
+            say += response.content
+
 
         elif entity_role == 'object':
             if '#' in filtered_types_names(gap['_target_entity_type']['_types']):

@@ -262,3 +262,26 @@ class Phraser(object):
         # Remove last ' and' and return
         say = say[:-5]
         return say.replace('-', ' ').replace('  ', ' ')
+
+
+class Rephraser(object):
+
+    def __init__(self):
+        # type: () -> None
+        """
+        Rephrase formulation of natural language based on structured data
+
+        Parameters
+        ----------
+        """
+
+        self._log = logger.getChild(self.__class__.__name__)
+        self._log.info("Booted")
+        self._phraser = Phraser()
+
+    @property
+    def phraser(self):
+        return self._phraser
+
+    def llamalize_reply(self, text_response):
+        raise NotImplementedError()
