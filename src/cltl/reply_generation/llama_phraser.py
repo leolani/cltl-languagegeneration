@@ -7,7 +7,7 @@ from cltl.commons.triple_helpers import filtered_types_names
 from langchain_ollama import ChatOllama
 
 from cltl.reply_generation.api import Phraser
-from cltl.reply_generation.utils.phraser_utils import replace_pronouns, clean_overlaps
+from cltl.reply_generation.utils.phraser_utils import clean_overlaps
 
 LLAMA_MODEL = ChatOllama(model="llama3.2", temperature=0.1)
 
@@ -26,34 +26,6 @@ class LlamaPhraser(Phraser):
         super(Phraser, self).__init__()
 
     @staticmethod
-    def get_triple_text_from_statement(statement):
-        triple = statement["triple"]
-        triple_text = triple["_subject"]["_label"] + ", " + triple["_predicate"]["_label"] + ", " + \
-                      triple["_complement"]["_label"]
-        return triple_text
-
-    @staticmethod
-    def get_perspective_from_statement(statement):
-        perspective = statement["perspective"]
-        perspective_text = ""
-        if not perspective['_certainty'] == 'UNDERSPECIFIED':
-            perspective_text += perspective['_certainty'] + ", "
-        if perspective['_polarity'] == 'POSITIVE':
-            perspective_text += 'believes' + ", "
-        elif perspective['_polarity'] == 'NEGATIVE':
-            perspective_text += 'denies' + ", "
-        if not perspective['_sentiment'] == 'NEUTRAL':
-            perspective_text += perspective['_sentiment'] + ", "
-        if not perspective['_emotion'] == 'UNDERSPECIFIED':
-            perspective_text += perspective['_emotion'] + ", "
-        return perspective_text
-
-    @staticmethod
-    def get_source_from_statement(statement):
-        author = statement["author"]["label"]
-        return author
-
-    @staticmethod
     def _phrase_cardinality_conflicts(conflicts, utterance):
         # type: (dict, dict) -> Optional[str]
 
@@ -64,17 +36,32 @@ class LlamaPhraser(Phraser):
         # There is a conflict, so we phrase it
         else:
             say = random.choice(CONFLICTING_KNOWLEDGE)
-            conflict = random.choice(conflicts)
-            x = 'you' if conflict['_provenance']['_author']['_label'] == utterance['author']['label'] \
-                else conflict['_provenance']['_author']['_label']
-            y = 'you' if utterance['triple']['_subject']['_label'] == conflict['_provenance']['_author']['_label'] \
-                else utterance['triple']['_subject']['_label']
+            conflict = random.choice(conflicts["provenance"])
 
-            # Checked
-            say += ' %s told me in %s that %s %s %s, but now you tell me that %s %s %s' \
-                   % (x, conflict['_provenance']['_date'],
-                      y, utterance['triple']['_predicate']['_label'], conflict['_complement']['_label'],
-                      y, utterance['triple']['_predicate']['_label'], utterance['triple']['_complement']['_label'])
+            prompt_cardinality_conflict = {"role": "system",
+                                           "content": f"You are an intelligent assistant. "
+                                                      f"I will give you as input: two triples with a subject, a predicate and an object, and provenance information of who and when someone mentioned the second triple "
+                                                      f"You need to paraphrase the input in plain English as a statement that acknowledges that the information is conflicting. "
+                                                      f"Only reply with the short paraphrase of the input. "
+                                                      f"When responding use the names from the triple and be specific. "
+                                                      f"Do not give an explanation. "
+                                                      f"Do not explain what the subject and object is. "
+                                                      f"The response should be just the paraphrased text and nothing else."}
+
+            triple_text = f"{utterance['triple']['_subject']['_label']} " \
+                          f"{utterance['triple']['_predicate']['_label']} " \
+                          f"{utterance['triple']['_complement']['_label']}"
+            conflict_text = f"{utterance['triple']['_subject']['_label']} " \
+                            f"{utterance['triple']['_predicate']['_label']} " \
+                            f"{conflict['_complement']['_label']}"
+            conflict_date = f"AUTHOR: {conflict['_provenance']['_author']['_label']}, " \
+                            f"DATE: {conflict['_provenance']['_date']}"
+
+            prompt = [prompt_cardinality_conflict, {"role": "user", "content": f"{triple_text} "
+                                                                               f"{conflict_text}"
+                                                                               f"{conflict_date}"}]
+            response = LLAMA_MODEL.invoke(prompt)
+            say += response.content
 
             return say
 
@@ -97,16 +84,31 @@ class LlamaPhraser(Phraser):
 
                 affirmative_conflict = random.choice(affirmative_conflict)
                 negative_conflict = random.choice(negative_conflict)
+                prompt_negation_conflict = {"role": "system",
+                                            "content": f"You are an intelligent assistant. "
+                                                       f"I will give you as input: a triple with a subject, a predicate and an object, and provenance information of who and when someone confirmed and denied this triple "
+                                                       f"You need to paraphrase the input in plain English as a statement that acknowledges that the information is conflicting. "
+                                                       f"Only reply with the short paraphrase of the input. "
+                                                       f"When responding use the names from the triple and be specific. "
+                                                       f"Do not give an explanation. "
+                                                       f"Do not explain what the subject and object is. "
+                                                       f"The response should be just the paraphrased text and nothing else."}
 
-                say += ' %s told me in %s that %s %s %s, but in %s %s told me that %s did not %s %s' \
-                       % (affirmative_conflict['_provenance']['_author']['_label'],
-                          affirmative_conflict['_provenance']['_date'],
-                          utterance['triple']['_subject']['_label'], utterance['triple']['_predicate']['_label'],
-                          utterance['triple']['_complement']['_label'],
-                          negative_conflict['_provenance']['_date'],
-                          negative_conflict['_provenance']['_author']['_label'],
-                          utterance['triple']['_subject']['_label'], utterance['triple']['_predicate']['_label'],
-                          utterance['triple']['_complement']['_label'])
+                triple_text = f"{utterance['triple']['_subject']['_label']} " \
+                              f"{utterance['triple']['_predicate']['_label']} " \
+                              f"{utterance['triple']['_complement']['_label']}"
+                affirmative_date = f"CONFIRM:" \
+                                   f"AUTHOR: {affirmative_conflict['_provenance']['_author']['_label']}, " \
+                                   f"DATE: {affirmative_conflict['_provenance']['_date']}"
+                negative_date = f"DENY: " \
+                                f"AUTHOR: {negative_conflict['_provenance']['_author']['_label']}, " \
+                                f"DATE: {negative_conflict['_provenance']['_date']}"
+
+                prompt = [prompt_negation_conflict, {"role": "user", "content": f"{triple_text} "
+                                                                                f"{affirmative_date} "
+                                                                                f"{negative_date}"}]
+                response = LLAMA_MODEL.invoke(prompt)
+                say += response.content
 
                 return say
 
@@ -117,41 +119,45 @@ class LlamaPhraser(Phraser):
 
         # I do not know this before, so be happy to learn
         if not novelties:
-            entity_role = random.choice(['subject', 'object'])
             say = random.choice(NEW_KNOWLEDGE)
+            prompt_novelty = {"role": "system",
+                              "content": f"You are an intelligent assistant. "
+                                         f"I will give you as input: a triple with a subject, a predicate and an object. "
+                                         f"You need to paraphrase the input in plain English as a statement that excitement to learn about the triple. "
+                                         f"Only reply with the short paraphrase of the input. "
+                                         f"When responding use the names from the triple and be specific. "
+                                         f"Do not give an explanation. "
+                                         f"Do not explain what the subject and object is. "
+                                         f"The response should be just the paraphrased text and nothing else."}
+            triple_text = f"{utterance['triple']['_subject']['_label']} " \
+                          f"{utterance['triple']['_predicate']['_label']} " \
+                          f"{utterance['triple']['_complement']['_label']}"
+            prompt = [prompt_novelty, {"role": "user", "content": triple_text}]
+            response = LLAMA_MODEL.invoke(prompt)
+            say += response.content
 
-            if entity_role == 'subject':
-                if 'person' in filtered_types_names(utterance['triple']['_complement']['_types']):
-                    any_type = 'anybody'
-                elif 'location' in filtered_types_names(utterance['triple']['_complement']['_types']):
-                    any_type = 'anywhere'
-                else:
-                    any_type = 'anything'
-
-                # Checked
-                # say += ' I did not know %s that %s %s' % (any_type, utterance['triple']['_subject']['_label'],
-                #                                           utterance['triple']['_predicate']['_label'])
-
-                say += ' Ik wist niet %s dat %s %s' % (any_type, utterance['triple']['_subject']['_label'],
-                                                       utterance['triple']['_predicate']['_label'])
-
-            elif entity_role == 'object':
-                # Checked
-                # say += ' I did not know anybody who %s %s' % (utterance['triple']['_predicate']['_label'],
-                #                                               utterance['triple']['_complement']['_label'])
-
-                say += ' Ik wist niet dat iemand %s %s' % (utterance['triple']['_predicate']['_label'],
-                                                           utterance['triple']['_complement']['_label'])
         # I already knew this
-        else:
+        else:  # TODO not working
             say = random.choice(EXISTING_KNOWLEDGE)
             novelty = random.choice(novelties)
-
-            # Checked
-            say += ' %s  heeft me dat verteld op %s' % (novelty['_provenance']['_author']['_label'],
-                                                        novelty['_provenance']['_date'])
-            # say += ' %s told me about it in %s' % (novelty['_provenance']['_author']['_label'],
-            #                                        novelty['_provenance']['_date'])
+            prompt_no_novelty = {"role": "system",
+                                 "content": f"You are an intelligent assistant. "
+                                            f"I will give you as input: a triple with a subject, a predicate and an object, and provenance information of who and when they said this triple "
+                                            f"You need to paraphrase the input in plain English as a statement that acknowledges that the triple is known. "
+                                            f"Only reply with the short paraphrase of the input. "
+                                            f"When responding use the names from the triple and be specific. "
+                                            f"Do not give an explanation. "
+                                            f"Do not explain what the subject and object is. "
+                                            f"The response should be just the paraphrased text and nothing else."}
+            triple_text = f"{utterance['triple']['_subject']['_label']} " \
+                          f"{utterance['triple']['_predicate']['_label']} " \
+                          f"{utterance['triple']['_complement']['_label']}"
+            triple_date = f"AUTHOR: {novelty['_provenance']['_author']['_label']}, " \
+                          f"DATE: {novelty['_provenance']['_date']}"
+            prompt = [prompt_no_novelty, {"role": "user", "content": f"{triple_text} "
+                                                                     f"{triple_date}"}]
+            response = LLAMA_MODEL.invoke(prompt)
+            say += response.content
 
         return say
 
@@ -168,20 +174,39 @@ class LlamaPhraser(Phraser):
 
         if 'entity' in utterance.keys():
             entity_label = utterance['entity']['_label']
-            entity_label = replace_pronouns(utterance['source']['label'] if 'source' in utterance.keys() else 'author',
-                                            entity_label=entity_label, role=entity_role)
         else:
             entity_label = utterance['triple']['_subject']['_label'] if entity_role == 'subject' \
                 else utterance['triple']['_complement']['_label']
-            entity_label = replace_pronouns(utterance['author']['label'], entity_label=entity_label, role=entity_role)
 
-        if novelty:
+        if not novelty:  # TODO: too dramatic
             say = random.choice(NEW_KNOWLEDGE)
-            say += ' I had never heard about %s before!' % entity_label
+            prompt_novelty = {"role": "system",
+                              "content": f"You are an intelligent assistant. "
+                                         f"I will give you as input: an entity name. "
+                                         f"You need to paraphrase the input in plain English as statement that expresses excitement to learn about the entity. "
+                                         f"Only reply with the short paraphrase of the input. "
+                                         f"When responding use the names of the entity and be specific. "
+                                         f"Do not give an explanation. "
+                                         f"Do not explain what the entity is. "
+                                         f"The response should be just the paraphrased text and nothing else."}
+            prompt = [prompt_novelty, {"role": "user", "content": entity_label}]
+            response = LLAMA_MODEL.invoke(prompt)
+            say += response.content
 
-        else:
+        else:  # TODO: add provenance information of when it was learned and by who
             say = random.choice(EXISTING_KNOWLEDGE)
-            say += ' I have heard about %s before' % entity_label
+            prompt_no_novelty = {"role": "system",
+                                 "content": f"You are an intelligent assistant. "
+                                            f"I will give you as input: an entity name. "
+                                            f"You need to paraphrase the input in plain English as statement that acknowledges that the entity is known. "
+                                            f"Only reply with the short paraphrase of the input. "
+                                            f"When responding use the names of the entity and be specific. "
+                                            f"Do not give an explanation. "
+                                            f"Do not explain what the entity is. "
+                                            f"The response should be just the paraphrased text and nothing else."}
+            prompt = [prompt_no_novelty, {"role": "user", "content": entity_label}]
+            response = LLAMA_MODEL.invoke(prompt)
+            say += response.content
 
         return say
 
@@ -203,17 +228,17 @@ class LlamaPhraser(Phraser):
         gap = random.choice(gaps)
         say = random.choice(CURIOSITY)
 
-        if entity_role == 'subject':
-            UTTERANCE_TYPE = "question"
-            prompt_subject_gap = {"role": "system", "content": f"You are an intelligent assistant. \
-                 I will give you as input: a triple with a subject, a predicate and a type of object.\
-                 You need to paraphrase the input in plain English as a {UTTERANCE_TYPE} for the object. \
-                 Use who for the type person, where for the type location, when for the type time and what for everything else. \
-                 Only reply with the short paraphrase of the input. \
-                 Do not give an explanation. \
-                 Do not explain what the subject and object is. \
-                 The response should be just the paraphrased text and nothing else."}
-
+        if entity_role == 'subject':  # TODO: not working
+            prompt_subject_gap = {"role": "system",
+                                  "content": f"You are an intelligent assistant. "
+                                             f"I will give you as input: a triple with a subject, a predicate and an OBJECT TYPE. "
+                                             f"You need to paraphrase the input in plain English as a question to find out the object. "
+                                             f"Use who for the type person, where for the type location, when for the type time and what for everything else. "
+                                             f"Only reply with the short paraphrase of the input. "
+                                             f"When responding use the names from the triple and be specific. "
+                                             f"Do not give an explanation. "
+                                             f"Do not explain what the subject and object is. "
+                                             f"The response should be just the paraphrased text and nothing else."}
             triple_text = f"{gap['_known_entity']['_label']} " \
                           f"{gap['_predicate']['_label']} " \
                           f"{filtered_types_names(gap['_target_entity_type']['_types']).upper()}"
@@ -222,20 +247,24 @@ class LlamaPhraser(Phraser):
             say += response.content
 
 
-        elif entity_role == 'object':
-            if '#' in filtered_types_names(gap['_target_entity_type']['_types']):
-                say += ' What is %s %s?' % (gap['_known_entity']['_label'],
-                                            gap['_predicate']['_label'])
-            elif ' ' in gap['_predicate']['_label']:
-                # Checked
-                say += ' Has %s ever %s %s?' % (filtered_types_names(gap['_target_entity_type']['_types']),
-                                                gap['_predicate']['_label'],
-                                                gap['_known_target_entity_type']['_label'])
-            else:
-                # Checked
-                say += ' Has %s ever %s a %s?' % (gap['_known_entity']['_label'],
-                                                  gap['_predicate']['_label'],
-                                                  filtered_types_names(gap['_target_entity_type']['_types']))
+        elif entity_role == 'object':  # TODO sometimes working
+            prompt_object_gap = {"role": "system",
+                                 "content": f"You are an intelligent assistant. "
+                                            f"I will give you as input: a triple with a SUBJECT TYPE, a predicate and an object."
+                                            f"You need to paraphrase the input in plain English as a question to find out the subject. "
+                                            f"Use who for the type person, where for the type location, when for the type time and what for everything else. "
+                                            f"Only reply with the short paraphrase of the input. "
+                                            f"When responding use the names from the triple and be specific. "
+                                            f"Do not give an explanation. "
+                                            f"Do not explain what the subject and object is. "
+                                            f"The response should be just the paraphrased text and nothing else."}
+
+            triple_text = f"{filtered_types_names(gap['_target_entity_type']['_types']).upper()} " \
+                          f"{gap['_predicate']['_label']} " \
+                          f"{gap['_known_entity']['_label']} "
+            prompt = [prompt_object_gap, {"role": "user", "content": triple_text}]
+            response = LLAMA_MODEL.invoke(prompt)
+            say += response.content
 
         return say
 
@@ -257,28 +286,43 @@ class LlamaPhraser(Phraser):
         gap = random.choice(gaps)
         say = random.choice(CURIOSITY)
 
-        if entity_role == 'subject':
-            if ' in' in gap['_predicate']['_label']:  # ' by' in gap['_predicate']['_label']
-                say += ' Is there a %s %s %s?' % (filtered_types_names(gap['_target_entity_type']['_types']),
-                                                  gap['_predicate']['_label'],
-                                                  gap['_known_entity']['_label'])
-            else:
-                say += ' Has %s %s by a %s?' % (gap['_known_entity']['_label'],
-                                                gap['_predicate']['_label'],
-                                                filtered_types_names(gap['_target_entity_type']['_types']))
+        if entity_role == 'subject':  # TODO: not working
+            prompt_subject_gap = {"role": "system",
+                                  "content": f"You are an intelligent assistant. "
+                                             f"I will give you as input: a triple with a subject, a predicate and an OBJECT TYPE. "
+                                             f"You need to paraphrase the input in plain English as a question to find out the object. "
+                                             f"Use who for the type person, where for the type location, when for the type time and what for everything else. "
+                                             f"Only reply with the short paraphrase of the input. "
+                                             f"When responding use the names from the triple and be specific. "
+                                             f"Do not give an explanation. "
+                                             f"Do not explain what the subject and object is. "
+                                             f"The response should be just the paraphrased text and nothing else."}
+            triple_text = f"{gap['_known_entity']['_label']} " \
+                          f"{gap['_predicate']['_label']} " \
+                          f"{filtered_types_names(gap['_target_entity_type']['_types']).upper()}"
+            prompt = [prompt_subject_gap, {"role": "user", "content": triple_text}]
+            response = LLAMA_MODEL.invoke(prompt)
+            say += response.content
 
-        elif entity_role == 'object':
-            if '#' in filtered_types_names(gap['_target_entity_type']['_types']):
-                say += ' What is %s %s?' % (gap['_known_entity']['_label'],
-                                            gap['_predicate']['_label'])
-            elif ' by' in gap['_predicate']['_label']:
-                say += ' Has %s ever %s a %s?' % (gap['_known_entity']['_label'],
-                                                  gap['_predicate']['_label'],
-                                                  filtered_types_names(gap['_target_entity_type']['_types']))
-            else:
-                say += ' Has a %s ever %s %s?' % (filtered_types_names(gap['_target_entity_type']['_types']),
-                                                  gap['_predicate']['_label'],
-                                                  gap['_known_entity']['_label'])
+
+        elif entity_role == 'object':  # TODO sometimes working
+            prompt_object_gap = {"role": "system",
+                                 "content": f"You are an intelligent assistant. "
+                                            f"I will give you as input: a triple with a SUBJECT TYPE, a predicate and an object."
+                                            f"You need to paraphrase the input in plain English as a question to find out the subject. "
+                                            f"Use who for the type person, where for the type location, when for the type time and what for everything else. "
+                                            f"Only reply with the short paraphrase of the input. "
+                                            f"When responding use the names from the triple and be specific. "
+                                            f"Do not give an explanation. "
+                                            f"Do not explain what the subject and object is. "
+                                            f"The response should be just the paraphrased text and nothing else."}
+
+            triple_text = f"{filtered_types_names(gap['_target_entity_type']['_types']).upper()} " \
+                          f"{gap['_predicate']['_label']} " \
+                          f"{gap['_known_entity']['_label']} "
+            prompt = [prompt_object_gap, {"role": "user", "content": triple_text}]
+            response = LLAMA_MODEL.invoke(prompt)
+            say += response.content
 
         return say
 
@@ -297,31 +341,51 @@ class LlamaPhraser(Phraser):
 
         overlaps = clean_overlaps(overlaps)
         say = random.choice(HAPPY)
-        if len(overlaps) < 2 and entity_role == 'subject':
-            say += ' Did you know that %s also %s %s' % (utterance['triple']['_subject']['_label'],
-                                                         utterance['triple']['_predicate']['_label'],
-                                                         random.choice(overlaps)['_entity']['_label'])
 
-        elif len(overlaps) < 2 and entity_role == 'object':
-            say += ' Did you know that %s also %s %s' % (random.choice(overlaps)['_entity']['_label'],
-                                                         utterance['triple']['_predicate']['_label'],
-                                                         utterance['triple']['_complement']['_label'])
+        if len(overlaps) < 2:  # TODO: phrase as "did you know selene ALSO likes dancing"
+            prompt_overlap = {"role": "system",
+                              "content": f"You are an intelligent assistant. "
+                                         f"I will give you as input: two triples with a subject, a predicate and an object."
+                                         f"You need to paraphrase the input in plain English as a statement that expresses that the first triple is related to the second triple. "
+                                         f"Only reply with the short paraphrase of the input. "
+                                         f"When responding use the names from the triple and be specific. "
+                                         f"Do not give an explanation. "
+                                         f"Do not explain what the subject and object is. "
+                                         f"The response should be just the paraphrased text and nothing else."}
 
-        elif entity_role == 'subject':
+            triple_text = f"{utterance['triple']['_subject']['_label']} " \
+                          f"{utterance['triple']['_predicate']['_label']} " \
+                          f"{utterance['triple']['_complement']['_label']} "
+            overlap_text = f"{utterance['triple']['_subject']['_label']} " \
+                           f"{utterance['triple']['_predicate']['_label']} " \
+                           f"{overlaps[0]['_entity']['_label']} "
+            prompt = [prompt_overlap, {"role": "user", "content": f"{triple_text} {overlap_text}"}]
+            response = LLAMA_MODEL.invoke(prompt)
+            say += response.content
+
+        else:
             sample = random.sample(overlaps, 2)
-            say += ' Now I know %s items that %s %s, like %s and %s' % (len(overlaps),
-                                                                        utterance['triple']['_subject']['_label'],
-                                                                        utterance['triple']['_predicate']['_label'],
-                                                                        sample[0]['_entity']['_label'],
-                                                                        sample[1]['_entity']['_label'])
+            prompt_overlap = {"role": "system",
+                              "content": f"You are an intelligent assistant. "
+                                         f"I will give you as input: three triples with a subject, a predicate and an object, and a number."
+                                         f"You need to paraphrase the input in plain English as a statement that expresses that the first triple is related to the other two triples and that there are NUMBER related triples in total. "
+                                         f"Only reply with the short paraphrase of the input. "
+                                         f"When responding use the names from the triple and be specific. "
+                                         f"Do not give an explanation. "
+                                         f"Do not explain what the subject and object is. "
+                                         f"The response should be just the paraphrased text and nothing else."}
 
-        elif entity_role == 'object':
-            sample = random.sample(overlaps, 2)
-            types = filtered_types_names(sample[0]['_entity']['_types']) if sample[0]['_entity']['_types'] else 'things'
-            say += ' Now I know %s %s that %s %s, like %s and %s' % (len(overlaps), types,
-                                                                     utterance['triple']['_predicate']['_label'],
-                                                                     utterance['triple']['_complement']['_label'],
-                                                                     sample[0]['_entity']['_label'],
-                                                                     sample[1]['_entity']['_label'])
+            triple_text = f"{utterance['triple']['_subject']['_label']} " \
+                          f"{utterance['triple']['_predicate']['_label']} " \
+                          f"{utterance['triple']['_complement']['_label']} "
+            overlap_text = f"{utterance['triple']['_subject']['_label']} " \
+                           f"{utterance['triple']['_predicate']['_label']} " \
+                           f"{sample[0]['_entity']['_label']} " \
+                           f"{utterance['triple']['_subject']['_label']} " \
+                           f"{utterance['triple']['_predicate']['_label']} " \
+                           f"{sample[1]['_entity']['_label']} "
+            prompt = [prompt_overlap, {"role": "user", "content": f"{triple_text} {overlap_text}"}]
+            response = LLAMA_MODEL.invoke(prompt)
+            say += response.content
 
         return say

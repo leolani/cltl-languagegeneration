@@ -141,3 +141,6 @@ dmypy.json
 
 # exclusions
 /src/cltl/reply_generation/next_sentence_prediction/model/
+
+
+**/.DS_Store
