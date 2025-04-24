@@ -111,3 +111,44 @@ def any_type(utterance):
         any_type = 'anything'
 
     return any_type
+
+
+
+def dash_replace(triple_text):
+    return triple_text.replace(' ', '-')
+
+
+def prepare_triple(utterance):
+    return f"{dash_replace(utterance['triple']['_subject']['_label'])} " \
+           f"{dash_replace(utterance['triple']['_predicate']['_label'])} " \
+           f"{dash_replace(utterance['triple']['_complement']['_label'])}"
+
+
+def prepare_speaker(utterance):
+    return f"{dash_replace(utterance['author']['label'])}"
+
+
+def prepare_author_from_thought(thought):
+    return f"{dash_replace(thought['_provenance']['_author']['_label'])}"
+
+
+def prepare_gap(gap, role="_subject"):
+    if role == "_subject":
+        return f"{dash_replace(gap['_known_entity']['_label'])} " \
+               f"{dash_replace(gap['_predicate']['_label'])} " \
+               f"{dash_replace(filtered_types_names(gap['_target_entity_type']['_types']).upper())}"
+    elif role == "_complement":
+        return f"{dash_replace(filtered_types_names(gap['_target_entity_type']['_types']).upper())} " \
+               f"{dash_replace(gap['_predicate']['_label'])} " \
+               f"{dash_replace(gap['_known_entity']['_label'])}"
+
+
+def prepare_overlap(utterance, overlap, role="_subject"):
+    if role == "_subject":
+        return f"{dash_replace(utterance['triple']['_subject']['_label'])} " \
+               f"{dash_replace(utterance['triple']['_predicate']['_label'])} " \
+               f"{dash_replace(overlap['_entity']['_label'])}"
+    elif role == "_complement":
+        return f"{dash_replace(overlap['_entity']['_label'])} " \
+               f"{dash_replace(utterance['triple']['_predicate']['_label'])} " \
+               f"{dash_replace(utterance['triple']['_complement']['_label'])}"

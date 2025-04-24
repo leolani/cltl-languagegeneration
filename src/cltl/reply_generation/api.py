@@ -107,13 +107,14 @@ class Phraser(object):
         """
         return "I am out of words."
 
-    def reply_to_statement(self, brain_response, persist=False):
+    def reply_to_statement(self, brain_response, persist=False, casefold=True):
         """
         Phrase a thought based on the brain response
         Parameters
         ----------
         brain_response: output of the brain
         persist: Call fallback
+        casefold: Whether to change the entity labels to natural language
 
         Returns
         -------
@@ -123,9 +124,14 @@ class Phraser(object):
         if not brain_response['statement']['triple']:
             return None
 
-        # Casefold
-        utterance = casefold_capsule(brain_response['statement'], format='natural')
-        thoughts = casefold_capsule(brain_response['thoughts'], format='natural')
+        if casefold:
+            # Casefold
+            utterance = casefold_capsule(brain_response['statement'], format='natural')
+            thoughts = casefold_capsule(brain_response['thoughts'], format='natural')
+        else:
+            utterance = brain_response['statement']
+            thoughts = brain_response['thoughts']
+
 
         # Generate reply
         (thought_type, thought_info) = list(thoughts.items())[0]
