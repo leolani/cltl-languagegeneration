@@ -25,6 +25,9 @@ class Phraser(object):
         self._log = logger.getChild(self.__class__.__name__)
         self._log.info("Booted")
 
+    def phrase_triple(self, utterance):
+        raise NotImplementedError()
+
     def phrase_correct_thought(self, utterance: dict, thought_type: str, thought_info: dict, fallback: bool = False) -> \
             Optional[str]:
         reply = None
@@ -82,14 +85,12 @@ class Phraser(object):
     def _phrase_overlaps(self, all_overlaps: dict, utterance: dict) -> Optional[str]:
         raise NotImplementedError()
 
-    @staticmethod
-    def _phrase_trust(trust: dict, utterance: dict) -> Optional[str]:
-        trust = trust['value']
-
-        if not trust:
+    def _phrase_trust(self, selected_thought: dict, utterance: dict) -> Optional[str]:
+        if not selected_thought or not selected_thought["thought_info"]:
             return None
 
-        elif float(trust) > 0.25:
+        trust = selected_thought['thought_info']['value']
+        if float(trust) > 0.25:
             say = random.choice(TRUST)
         else:
             say = random.choice(NO_TRUST)
@@ -131,7 +132,6 @@ class Phraser(object):
         else:
             utterance = brain_response['statement']
             thoughts = brain_response['thoughts']
-
 
         # Generate reply
         (thought_type, thought_info) = list(thoughts.items())[0]

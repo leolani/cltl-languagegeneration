@@ -124,6 +124,26 @@ def prepare_triple(utterance):
            f"{dash_replace(utterance['triple']['_complement']['_label'])}"
 
 
+def prepare_perspective(utterance):
+    perspective = utterance['perspective']
+    perspective_text = ""
+
+    if '_polarity' in perspective.keys() and perspective['_polarity'].upper() == 'POSITIVE':
+        perspective_text += 'CONFIRM,'
+    elif '_polarity' in perspective.keys() and perspective['_polarity'].upper() == 'NEGATIVE':
+        perspective_text += 'DENY,'
+
+    if '_certainty' in perspective.keys() and not perspective['_certainty'].upper() == 'UNDERSPECIFIED':
+        perspective_text += perspective['_certainty'].upper() + ", "
+
+    if '_sentiment' in perspective.keys() and perspective['_sentiment'].upper() not in ['NEUTRAL', 'UNDERSPECIFIED']:
+        perspective_text += perspective['_sentiment'].upper() + " SENTIMENT, "
+
+    if '_emotion' in perspective.keys() and not perspective['_emotion'].upper() == 'UNDERSPECIFIED':
+        perspective_text += perspective['_emotion'].upper() + " , "
+
+    return perspective_text
+
 def prepare_speaker(utterance):
     return f"{dash_replace(utterance['author']['label'])}"
 

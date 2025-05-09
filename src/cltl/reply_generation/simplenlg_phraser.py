@@ -2,7 +2,7 @@ import random
 from typing import Optional
 
 from cltl.commons.language_data.sentences import NEW_KNOWLEDGE, EXISTING_KNOWLEDGE, CONFLICTING_KNOWLEDGE, \
-    CURIOSITY, HAPPY, TRUST, NO_TRUST
+    CURIOSITY, HAPPY
 from cltl.commons.triple_helpers import filtered_types_names
 from cltl.thoughts.thought_selection.utils.thought_utils import separate_select_negation_conflicts
 from simplenlg.framework import *
@@ -134,10 +134,17 @@ class SimplenlgPhraser(Phraser):
         ----------
         """
 
-        super(Phraser, self).__init__()
+        super(SimplenlgPhraser, self).__init__()
 
-    @staticmethod
-    def _phrase_cardinality_conflicts(selected_thought, utterance):
+    def phrase_triple(self, utterance):
+        # type: (dict) -> Optional[str]
+        say = simple_nlg(utterance['triple']['_subject']['_label'],
+                         utterance['triple']['_predicate']['_label'],
+                         utterance['triple']['_complement']['_label'])
+
+        return say
+
+    def _phrase_cardinality_conflicts(self, selected_thought, utterance):
         # type: (dict, dict) -> Optional[str]
 
         # There is no conflict, so no response
@@ -146,9 +153,9 @@ class SimplenlgPhraser(Phraser):
 
         # There is a conflict, so we phrase it
         else:
+            say = random.choice(CONFLICTING_KNOWLEDGE)
             conflict = selected_thought["thought_info"]
 
-            say = random.choice(CONFLICTING_KNOWLEDGE)
             x = 'you' if conflict['_provenance']['_author']['_label'] == utterance['author']['label'] \
                 else conflict['_provenance']['_author']['_label']
             y = 'you' if utterance['triple']['_subject']['_label'] == conflict['_provenance']['_author']['_label'] \
@@ -163,8 +170,7 @@ class SimplenlgPhraser(Phraser):
 
             return say
 
-    @staticmethod
-    def _phrase_negation_conflicts(selected_thought, utterance):
+    def _phrase_negation_conflicts(self, selected_thought, utterance):
         # type: (dict, dict) -> Optional[str]
 
         # There is no conflict, so no response
@@ -194,8 +200,7 @@ class SimplenlgPhraser(Phraser):
 
                 return say
 
-    @staticmethod
-    def _phrase_statement_novelty(selected_thought, utterance):
+    def _phrase_statement_novelty(self, selected_thought, utterance):
         # type: (dict, dict) -> Optional[str]
 
         # I do not know this before, so be happy to learn
@@ -225,8 +230,7 @@ class SimplenlgPhraser(Phraser):
 
         return say
 
-    @staticmethod
-    def _phrase_type_novelty(selected_thought, utterance):
+    def _phrase_type_novelty(self, selected_thought, utterance):
         # type: (dict, dict) -> Optional[str]
 
         entity_role = selected_thought["extra_info"]
@@ -254,8 +258,7 @@ class SimplenlgPhraser(Phraser):
 
         return say
 
-    @staticmethod
-    def _phrase_subject_gaps(selected_thought, utterance):
+    def _phrase_subject_gaps(self, selected_thought, utterance):
         # type: (dict, dict) -> Optional[str]
 
         # There is no gaps, so no response
@@ -263,20 +266,18 @@ class SimplenlgPhraser(Phraser):
             return None
 
         # There is a gap
-        else:
-            entity_role = selected_thought["extra_info"]
-            gap = selected_thought["thought_info"]
+        entity_role = selected_thought["extra_info"]
+        gap = selected_thought["thought_info"]
 
-            say = random.choice(CURIOSITY)
-            if entity_role == '_subject':
-                say += phrase_ssubject_gap_question(gap)
+        say = random.choice(CURIOSITY)
+        if entity_role == '_subject':
+            say += phrase_ssubject_gap_question(gap)
 
-            elif entity_role == '_complement':
-                say += phrase_scomplement_gap_question(gap)
-            return say
+        elif entity_role == '_complement':
+            say += phrase_scomplement_gap_question(gap)
+        return say
 
-    @staticmethod
-    def _phrase_complement_gaps(selected_thought, utterance):
+    def _phrase_complement_gaps(self, selected_thought, utterance):
         # type: (dict, dict) -> Optional[str]
 
         # There is no gaps, so no response
@@ -284,22 +285,21 @@ class SimplenlgPhraser(Phraser):
             return None
 
         # There is a gap
-        else:
-            entity_role = selected_thought["extra_info"]
-            gap = selected_thought["thought_info"]
+        entity_role = selected_thought["extra_info"]
+        gap = selected_thought["thought_info"]
 
-            say = random.choice(CURIOSITY)
-            if entity_role == '_subject':
-                say += phrase_csubject_gap_question(gap)
+        say = random.choice(CURIOSITY)
+        if entity_role == '_subject':
+            say += phrase_csubject_gap_question(gap)
 
-            elif entity_role == '_complement':
-                say += phrase_ccomplement_gap_question(gap)
+        elif entity_role == '_complement':
+            say += phrase_ccomplement_gap_question(gap)
 
         return say
 
-    @staticmethod
-    def _phrase_overlaps(selected_thought, utterance):
+    def _phrase_overlaps(self, selected_thought, utterance):
         # type: (dict, dict) -> Optional[str]
+
         if not selected_thought or not selected_thought["thought_info"]:
             return None
 
@@ -318,20 +318,3 @@ class SimplenlgPhraser(Phraser):
                                                          utterance['triple']['_complement']['_label'])
 
         return say
-
-    @staticmethod
-    def _phrase_trust(selected_thought: dict, utterance: dict) -> Optional[str]:
-        if not selected_thought or not selected_thought["thought_info"]:
-            return None
-
-        else:
-            trust = selected_thought["thought_info"]['value']
-
-            if float(trust) > 0.25:
-                say = random.choice(TRUST)
-            else:
-                say = random.choice(NO_TRUST)
-
-            say = f"{utterance['author']['label']}, {say}"
-
-            return say

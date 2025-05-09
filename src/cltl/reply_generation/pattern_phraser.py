@@ -4,6 +4,7 @@ from typing import Optional
 from cltl.commons.language_data.sentences import NEW_KNOWLEDGE, EXISTING_KNOWLEDGE, CONFLICTING_KNOWLEDGE, \
     CURIOSITY, HAPPY
 from cltl.commons.triple_helpers import filtered_types_names
+from cltl.thoughts.thought_selection.utils.thought_utils import separate_select_negation_conflicts
 
 from cltl.reply_generation.api import Phraser
 from cltl.reply_generation.utils.phraser_utils import replace_pronouns, clean_overlaps
@@ -20,20 +21,28 @@ class PatternPhraser(Phraser):
         ----------
         """
 
-        super(Phraser, self).__init__()
+        super(PatternPhraser, self).__init__()
 
-    @staticmethod
-    def _phrase_cardinality_conflicts(conflicts, utterance):
+    def phrase_triple(self, utterance):
+        # type: (dict) -> Optional[str]
+        say = f"{utterance['triple']['_subject']['_label']} " \
+              f"{utterance['triple']['_predicate']['_label']} " \
+              f"{utterance['triple']['_complement']['_label']}"
+
+        return say
+
+    def _phrase_cardinality_conflicts(self, selected_thought, utterance):
         # type: (dict, dict) -> Optional[str]
 
         # There is no conflict, so no response
-        if not conflicts:
+        if not selected_thought or not selected_thought["thought_info"]:
             return None
 
         # There is a conflict, so we phrase it
         else:
             say = random.choice(CONFLICTING_KNOWLEDGE)
-            conflict = random.choice(conflicts)
+            conflict = selected_thought["thought_info"]
+
             x = 'you' if conflict['_provenance']['_author']['_label'] == utterance['author']['label'] \
                 else conflict['_provenance']['_author']['_label']
             y = 'you' if utterance['triple']['_subject']['_label'] == conflict['_provenance']['_author']['_label'] \
@@ -47,18 +56,17 @@ class PatternPhraser(Phraser):
 
             return say
 
-    @staticmethod
-    def _phrase_negation_conflicts(conflicts, utterance):
+    def _phrase_negation_conflicts(self, selected_thought, utterance):
         # type: (dict, dict) -> Optional[str]
 
         # There is no conflict, so no response
-        if not conflicts or len(conflicts) < 2:
+        if not selected_thought or not selected_thought["thought_info"]:
             return None
 
         # There is conflict entries
         else:
-            affirmative_conflict = [item for item in conflicts if item['_polarity_value'] == 'POSITIVE']
-            negative_conflict = [item for item in conflicts if item['_polarity_value'] == 'NEGATIVE']
+            conflicts = selected_thought["thought_info"]
+            affirmative_conflict, negative_conflict = separate_select_negation_conflicts(conflicts)
 
             # There is a conflict, so we phrase it
             if affirmative_conflict and negative_conflict:
@@ -79,15 +87,13 @@ class PatternPhraser(Phraser):
 
                 return say
 
-    @staticmethod
-    def _phrase_statement_novelty(novelties, utterance):
+    def _phrase_statement_novelty(self, selected_thought, utterance):
         # type: (dict, dict) -> Optional[str]
-        novelties = novelties["provenance"]
 
         # I do not know this before, so be happy to learn
-        if not novelties:
-            entity_role = random.choice(['subject', 'object'])
+        if not selected_thought or not selected_thought["thought_info"]:
             say = random.choice(NEW_KNOWLEDGE)
+            entity_role = selected_thought["extra_info"]
 
             if entity_role == 'subject':
                 if 'person' in filtered_types_names(utterance['triple']['_complement']['_types']):
@@ -102,7 +108,7 @@ class PatternPhraser(Phraser):
                 #                                           utterance['triple']['_predicate']['_label'])
 
                 say += ' Ik wist niet %s dat %s %s' % (any_type, utterance['triple']['_subject']['_label'],
-                                                          utterance['triple']['_predicate']['_label'])
+                                                       utterance['triple']['_predicate']['_label'])
 
             elif entity_role == 'object':
                 # Checked
@@ -110,68 +116,61 @@ class PatternPhraser(Phraser):
                 #                                               utterance['triple']['_complement']['_label'])
 
                 say += ' Ik wist niet dat iemand %s %s' % (utterance['triple']['_predicate']['_label'],
-                                                              utterance['triple']['_complement']['_label'])
+                                                           utterance['triple']['_complement']['_label'])
         # I already knew this
         else:
             say = random.choice(EXISTING_KNOWLEDGE)
-            novelty = random.choice(novelties)
+            novelty = selected_thought["thought_info"]
 
             # Checked
             say += ' %s  heeft me dat verteld op %s' % (novelty['_provenance']['_author']['_label'],
-                                                   novelty['_provenance']['_date'])
+                                                        novelty['_provenance']['_date'])
             # say += ' %s told me about it in %s' % (novelty['_provenance']['_author']['_label'],
             #                                        novelty['_provenance']['_date'])
 
         return say
 
-    @staticmethod
-    def _phrase_type_novelty(novelties, utterance):
+    def _phrase_type_novelty(self, selected_thought, utterance):
         # type: (dict, dict) -> Optional[str]
 
-        # There is no novelty information, so no response
-        if not novelties:
-            return None
+        entity_role = selected_thought["extra_info"]
+        novelty = selected_thought["thought_info"]
 
-        entity_role = random.choice(['subject', 'object'])
-        novelty = novelties['_subject'] if entity_role == 'subject' else novelties['_complement']
-
+        # Only entity thought
         if 'entity' in utterance.keys():
             entity_label = utterance['entity']['_label']
             entity_label = replace_pronouns(utterance['source']['label'] if 'source' in utterance.keys() else 'author',
                                             entity_label=entity_label, role=entity_role)
+        # Triple thought
         else:
             entity_label = utterance['triple']['_subject']['_label'] if entity_role == 'subject' \
                 else utterance['triple']['_complement']['_label']
             entity_label = replace_pronouns(utterance['author']['label'], entity_label=entity_label, role=entity_role)
 
+        # There is no novelty information, so happy to learn
         if novelty:
             say = random.choice(NEW_KNOWLEDGE)
             say += ' I had never heard about %s before!' % entity_label
 
+        # I already knew this
         else:
             say = random.choice(EXISTING_KNOWLEDGE)
             say += ' I have heard about %s before' % entity_label
 
         return say
 
-    @staticmethod
-    def _phrase_subject_gaps(all_gaps, utterance):
+    def _phrase_subject_gaps(self, selected_thought, utterance):
         # type: (dict, dict) -> Optional[str]
 
         # There is no gaps, so no response
-        if not all_gaps:
+        if not selected_thought or not selected_thought["thought_info"]:
             return None
 
-        # random choice between object or subject
-        entity_role = random.choice(['subject', 'object'])
-        gaps = all_gaps['_subject'] if entity_role == 'subject' else all_gaps['_complement']
+        # There is a gap
+        entity_role = selected_thought["extra_info"]
+        gap = selected_thought["thought_info"]
 
-        if not gaps:
-            return None
-
-        gap = random.choice(gaps)
         say = random.choice(CURIOSITY)
-
         if entity_role == 'subject':
             if 'is ' in gap['_predicate']['_label'] or ' is' in gap['_predicate']['_label']:
                 say += ' Is there a %s that %s %s?' % (filtered_types_names(gap['_target_entity_type']['_types']),
@@ -208,24 +207,18 @@ class PatternPhraser(Phraser):
 
         return say
 
-    @staticmethod
-    def _phrase_complement_gaps(all_gaps, utterance):
+    def _phrase_complement_gaps(self, selected_thought, utterance):
         # type: (dict, dict) -> Optional[str]
 
         # There is no gaps, so no response
-        if not all_gaps:
+        if not selected_thought or not selected_thought["thought_info"]:
             return None
 
-        # random choice between object or subject
-        entity_role = random.choice(['subject', 'object'])
-        gaps = all_gaps['_subject'] if entity_role == 'subject' else all_gaps['_complement']
+        # There is a gap
+        entity_role = selected_thought["extra_info"]
+        gap = selected_thought["thought_info"]
 
-        if not gaps:
-            return None
-
-        gap = random.choice(gaps)
         say = random.choice(CURIOSITY)
-
         if entity_role == 'subject':
             if ' in' in gap['_predicate']['_label']:  # ' by' in gap['_predicate']['_label']
                 say += ' Is there a %s %s %s?' % (filtered_types_names(gap['_target_entity_type']['_types']),
@@ -251,46 +244,24 @@ class PatternPhraser(Phraser):
 
         return say
 
-    @staticmethod
-    def _phrase_overlaps(all_overlaps, utterance):
+    def _phrase_overlaps(self, selected_thought, utterance):
         # type: (dict, dict) -> Optional[str]
 
-        if not all_overlaps:
+        if not selected_thought or not selected_thought["thought_info"]:
             return None
 
-        entity_role = random.choice(['subject', 'object'])
-        overlaps = all_overlaps['_subject'] if entity_role == 'subject' else all_overlaps['_complement']
+        entity_role = selected_thought["extra_info"]
+        overlap = selected_thought["thought_info"]
 
-        if not overlaps:
-            return None
-
-        overlaps = clean_overlaps(overlaps)
         say = random.choice(HAPPY)
-        if len(overlaps) < 2 and entity_role == 'subject':
+        if entity_role == 'subject':
             say += ' Did you know that %s also %s %s' % (utterance['triple']['_subject']['_label'],
                                                          utterance['triple']['_predicate']['_label'],
-                                                         random.choice(overlaps)['_entity']['_label'])
-
-        elif len(overlaps) < 2 and entity_role == 'object':
-            say += ' Did you know that %s also %s %s' % (random.choice(overlaps)['_entity']['_label'],
-                                                         utterance['triple']['_predicate']['_label'],
-                                                         utterance['triple']['_complement']['_label'])
-
-        elif entity_role == 'subject':
-            sample = random.sample(overlaps, 2)
-            say += ' Now I know %s items that %s %s, like %s and %s' % (len(overlaps),
-                                                                        utterance['triple']['_subject']['_label'],
-                                                                        utterance['triple']['_predicate']['_label'],
-                                                                        sample[0]['_entity']['_label'],
-                                                                        sample[1]['_entity']['_label'])
+                                                         overlap['_entity']['_label'])
 
         elif entity_role == 'object':
-            sample = random.sample(overlaps, 2)
-            types = filtered_types_names(sample[0]['_entity']['_types']) if sample[0]['_entity']['_types'] else 'things'
-            say += ' Now I know %s %s that %s %s, like %s and %s' % (len(overlaps), types,
-                                                                     utterance['triple']['_predicate']['_label'],
-                                                                     utterance['triple']['_complement']['_label'],
-                                                                     sample[0]['_entity']['_label'],
-                                                                     sample[1]['_entity']['_label'])
+            say += ' Did you know that %s also %s %s' % (overlap['_entity']['_label'],
+                                                         utterance['triple']['_predicate']['_label'],
+                                                         utterance['triple']['_complement']['_label'])
 
         return say
