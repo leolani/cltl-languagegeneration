@@ -1,3 +1,4 @@
+import logging
 import random
 from typing import Optional
 
@@ -9,6 +10,9 @@ from langchain_ollama import ChatOllama
 from cltl.reply_generation.api import Phraser
 from cltl.reply_generation.utils.phraser_utils import dash_replace, prepare_triple, prepare_perspective, \
     prepare_speaker, prepare_author_from_thought, prepare_gap, prepare_overlap
+
+# Set httpx logging level to WARNING
+logging.getLogger("httpx").setLevel(logging.WARNING)
 
 
 class LlamaPhraser(Phraser):
