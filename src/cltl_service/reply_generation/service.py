@@ -6,6 +6,7 @@ from cltl.brain.utils.helper_functions import brain_response_to_json
 from cltl.combot.event.emissor import TextSignalEvent
 from cltl.combot.infra.config import ConfigurationManager
 from cltl.combot.infra.event import Event, EventBus
+from cltl.combot.infra.event.util import extract_scenario_id
 from cltl.combot.infra.resource import ResourceManager
 from cltl.combot.infra.time_util import timestamp_now
 from cltl.combot.infra.topic_worker import TopicWorker
@@ -20,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 class ReplyGenerationService:
     @classmethod
-    def from_config(cls, repliers: List[BasicReplier], emissor_data: EmissorDataClient, event_bus: EventBus,
+    def from_config(cls, repliers: List[BasicReplier], event_bus: EventBus,
                     resource_manager: ResourceManager,
                     config_manager: ConfigurationManager):
         config = config_manager.get_config("cltl.reply_generation")
@@ -34,16 +35,15 @@ class ReplyGenerationService:
 
         return cls(config.get("topic_input"), config.get("topic_output"),
                    config.get("intentions", multi=True), config.get("topic_intention"),
-                   repliers, utterance_types, thought_options, emissor_data, event_bus, resource_manager)
+                   repliers, utterance_types, thought_options, event_bus, resource_manager)
 
     def __init__(self, input_topic: str, output_topic: str, intentions: Iterable[str], intention_topic: str,
                  repliers: List[BasicReplier], utterance_types: List[UtteranceType], thought_options: List[str],
-                 emissor_data: EmissorDataClient, event_bus: EventBus, resource_manager: ResourceManager):
+                 event_bus: EventBus, resource_manager: ResourceManager):
         self._repliers = repliers
         self._utterance_types = utterance_types
         self._thought_options = thought_options
 
-        self._emissor_data = emissor_data
         self._event_bus = event_bus
         self._resource_manager = resource_manager
 
@@ -85,8 +85,9 @@ class ReplyGenerationService:
             brain_responses = [brain_response_to_json(brain_response) for brain_response in event.payload]
             response = self._best_response(brain_responses)
         if response:
-            extractor_event = self._create_payload(response)
-            self._event_bus.publish(self._output_topic, Event.for_payload(extractor_event))
+            scenario_id = extract_scenario_id(event)
+            extractor_event = self._create_payload(scenario_id, response)
+            self._event_bus.publish(self._output_topic, Event.for_payload(extractor_event), source=event)
             logger.debug("Created reply: %s", extractor_event.signal.text)
 
     def _best_response(self, brain_responses):
@@ -147,8 +148,7 @@ class ReplyGenerationService:
         except:
             return None
 
-    def _create_payload(self, response):
-        scenario_id = self._emissor_data.get_current_scenario_id()
+    def _create_payload(self, scenario_id, response):
         signal = TextSignal.for_scenario(scenario_id, timestamp_now(), timestamp_now(), None, response)
 
         return TextSignalEvent.for_agent(signal)
