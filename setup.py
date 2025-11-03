@@ -24,21 +24,21 @@ setup(
     package_data={'cltl.reply_generation': []},
     python_requires='>=3.7',
     install_requires=[
-        'tqdm~=4.62',
-        'matplotlib~=3.4',
+        'tqdm',
+        'matplotlib',
         'simplenlg',
         "cltl.combot"
     ],
     setup_requires=['flake8'],
     extras_require={
         "transformers": [
-            'torch~=1.10.2',
-            'transformers~=4.16.2',
+            'torch',
+            'transformers',
         ],
         "llama": [
             'openai',
-            'ollama~=0.3.3',
-            'langchain_ollama~=0.2.0',
+            'ollama',
+            'langchain_ollama',
         ],
         "service": [
             "cltl.brain",
