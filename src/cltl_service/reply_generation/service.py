@@ -84,7 +84,7 @@ class ReplyGenerationService:
         if response:
             scenario_id = extract_scenario_id(event)
             extractor_event = self._create_payload(scenario_id, response)
-            self._event_bus.publish(self._output_topic, Event.for_payload(extractor_event), source=event)
+            self._event_bus.publish(self._output_topic, Event.for_payload(extractor_event, source=event))
             logger.debug("Created reply: %s", extractor_event.signal.text)
 
     def _best_response(self, brain_responses):
