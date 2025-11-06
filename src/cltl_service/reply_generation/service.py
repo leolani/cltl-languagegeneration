@@ -37,17 +37,20 @@ class ReplyGenerationService:
                 if "utterance_types" in config \
                 else [UtteranceType.QUESTION, UtteranceType.STATEMENT, UtteranceType.TEXT_MENTION]
 
+        buffer_size = config.get_int("buffer_size") if "buffer_size" in config else 1
+
         return cls(config.get("topic_input"), config.get("topic_output"),
                    config.get("intentions", multi=True), config.get("topic_intention"),
-                   repliers, utterance_types, thought_options, event_bus, resource_manager)
+                   repliers, utterance_types, thought_options, buffer_size, event_bus, resource_manager)
 
     def __init__(self, input_topic: str, output_topic: str, intentions: Iterable[str], intention_topic: str,
                  repliers: List[BasicReplier], utterance_types: List[UtteranceType], thought_options: List[str],
-                 event_bus: EventBus, resource_manager: ResourceManager):
+                 buffer_size: int, event_bus: EventBus, resource_manager: ResourceManager):
         self._repliers = repliers
         self._utterance_types = utterance_types
         self._thought_options = thought_options
 
+        self._buffer_size = buffer_size
         self._event_bus = event_bus
         self._resource_manager = resource_manager
 
@@ -65,6 +68,7 @@ class ReplyGenerationService:
     def start(self, timeout=30):
         self._topic_worker = TopicWorker([self._input_topic], self._event_bus, provides=[self._output_topic],
                                          resource_manager=self._resource_manager, processor=self._process,
+                                         buffer_size=self._buffer_size,
                                          intentions=self._intentions, intention_topic = self._intention_topic,
                                          name=self.__class__.__name__)
         self._topic_worker.start().wait()
