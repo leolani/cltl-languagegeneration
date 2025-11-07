@@ -1,6 +1,6 @@
 import random
 import time
-
+import json
 import ollama
 from langchain_ollama import ChatOllama
 from cltl.commons.casefolding import casefold_capsule
@@ -12,19 +12,19 @@ from cltl.reply_generation.api import BasicReplier
 from cltl.reply_generation.phrasers.pattern_phraser import PatternPhraser
 from cltl.reply_generation.thought_selectors.random_selector import RandomSelector
 from cltl.reply_generation.utils.phraser_utils import replace_pronouns, assign_spo, deal_with_authors, fix_entity
+from ollama import Client
 
 # to use ollama pull the model from the terminal in the venv: ollama pull <model-name>
 LLAMA_MODEL = "llama3.2:1b"
 #LLAMA_MODEL = "llama3.2"
 
-INSTRUCT = {'role': 'system', 'content': 'Paraphrase the user input in plain simple English. \
-                                         The input can be a statement, a list of statements or a question. \
-                                         Use at most two sentence. \
-                                         Be CONCISE and do NOT hallucinate. Do NOT include your instructions in the paraphrase.'}
+INSTRUCT = 'Paraphrase the user input in plain simple English. The input can be a statement, a list of statements or a question.  Use at most two sentences. Be CONCISE and do NOT hallucinate. Do NOT include your instructions in the paraphrase.'
 CONTENT_TYPE_SEPARATOR = ';'
 
 class LenkaReplier(BasicReplier):
-    def __init__(self,  model=None, instruct=None, llamalize= False, temperature=0.1, max_tokens=250, show_lenka=False, thought_selector = RandomSelector()):
+    def __init__(self, model_name:str, model_server="cloud", model_url = "https://ollama.com", model_port = "9001", model_key = "", instruct=INSTRUCT, llamalize=False,
+                 temperature=0.2, max_tokens=250, show_lenka=False, thought_selector=RandomSelector()):
+    #def __init__(self,  model=None, instruct=None, llamalize= False, temperature=0.1, max_tokens=250, show_lenka=False, thought_selector = RandomSelector()):
         # type: (ThoughtSelector) -> None
         """
         Generate natural language based on structured data
@@ -44,41 +44,78 @@ class LenkaReplier(BasicReplier):
         self._show_original = show_lenka
         self._instruct = INSTRUCT
         if llamalize:
+            self._log.info("Initializing LLM paraphraser: %s, %s, %s", model_server, model_url, model_name)
             self._llamalize = True
-            if model:
-                self._model =  model
+            if model_name:
+                self._model =  model_name
             else:
                 self._model = LLAMA_MODEL
             if instruct:
                 self._instruct = instruct
-            ollama.pull(model)
-            self._llm = ChatOllama(
-                            model = self._model,
-                            temperature = temperature,
-                            num_predict = max_tokens,
-                            # other params ...
-                        )
+            self._SERVER = model_server
+            if self._SERVER == "server":
+                self._client = OpenAI(base_url=model_url, api_key="not-needed")
+            elif self._SERVER == "local":
+                self._client = ChatOllama(
+                    model=self._model_name,
+                    temperature=self._temperature,
+                    base_url=url
+                    # other params ...
+                )
+            elif self._SERVER == "cloud":
+                self._client = Client(
+                    host=model_url,
+                    headers={'Authorization': 'Bearer ' + model_key})
+            else:
+                raise ValueError("Unknown server type")
+
+    def call_llm(self, prompt):
+        response = ''
+        if self._SERVER=="cloud":
+            self._log.info("Prompt to LLM: %s", prompt)
+            result = self._client.chat(model=self._model, messages=prompt)
+            #Arguments: (ChatResponse(model='gpt-oss:120b',
+            # created_at='2025-11-06T18:23:49.682240702Z',
+            # done=True, done_reason='stop',
+            # total_duration=2664602614,
+            # load_duration=None, p
+            # rompt_eval_count=572,
+            # prompt_eval_duration=None,
+            # eval_count=312,
+            # eval_duration=None,
+            # message=Message(role='assistant',
+            # content='Joe is a 40‑year‑old unmarried stock trader from New\u202fYork who likes dogs, pizza, robots, and has a brother named Kerem, along with parents, siblings, and even a grandchild. He is curious and confident, but doesn’t trust the speaker.', images=None, tool_calls=None)),)
+
+            # for part in self._client.chat(model=self._model, messages=prompt, stream=True):
+            response = result['message']['content']
+        elif self._SERVER=="local":
+            response = self._client.invoke(prompt)
+        elif self._SERVER=="server":
+            response = self._client.chat.completions.create(model=self._model, messages=prompt)
+        else:
+            raise ValueError("Unknown server type")
+        self._log.info('LLM response %s: %s', type(response), response)
+        return response
 
     def llamalize_reply(self, reply):
         response = reply
         if self._llamalize:
             self._log.info(f"Before llamatize: {response}")
+            instruction = {'role': 'system', 'content': self._instruct}
             input = {'role': 'user', 'content': reply}
-            prompt = [self._instruct, input]
-            self._log.info(f"Prompt for llama: {prompt}")
+            prompt = [instruction, input]
+            self._log.info(f"Paraphrase prompt input for the LLM: {input}")
             if reply:
                 if self._show_original:
                     response = "My original response was: "+reply+". "
-                paraphrase = self._llm.invoke(prompt)
-                if paraphrase:
-                    self._log.info(f"After llamatize:: {paraphrase}")
-                    if self._show_original:
-                        response += "This is how Llama paraphrased it: " + paraphrase.content
-                    else:
-                        response = paraphrase.content
-                    self._log.info(f"After llamatize:: {response}")
+                paraphrase = self.call_llm(prompt)
+                if self._show_original:
+                    response += "This is how the LLM paraphrased it: " + paraphrase
+                else:
+                    response = paraphrase
+                self._log.info(f"After LLM patahrasing it:: {response}")
             else:
-                self._log.info(f"No reply to llamatize!")
+                self._log.info(f"There is no reply to paraphrase!")
         return response
 
     def reply_to_question(self, brain_response):
@@ -153,12 +190,16 @@ class LenkaReplier(BasicReplier):
             if predicate.endswith('is'):
 
                 say += object + ' is'
-                if utterance['object']['label'].lower() == utterance['author']['label'].lower() or \
-                        utterance['subject']['label'].lower() == utterance['author']['label'].lower():
+                if object == author or subject == author:
                     say += ' your '
-                elif utterance['object']['label'].lower() == 'leolani' or \
-                        utterance['subject']['label'].lower() == 'leolani':
+                elif object == 'leolani' or subject == 'leolani':
                     say += ' my '
+                # if utterance['object']['label'].lower() == utterance['author']['label'].lower() or \
+                #         utterance['subject']['label'].lower() == utterance['author']['label'].lower():
+                #     say += ' your '
+                # elif utterance['object']['label'].lower() == 'leolani' or \
+                #         utterance['subject']['label'].lower() == 'leolani':
+                #     say += ' my '
                 say += predicate[:-3]
 
                 return say
@@ -380,3 +421,19 @@ class LenkaReplier(BasicReplier):
         if self._llamalize:
             reply = self.llamalize_reply(reply)
         return reply
+
+
+
+if __name__ == "__main__":
+    test_in = "Herman|Herman told me joe do not is married and that joe do not ring a bell and Joe told me joe like dogs and that joe be-from new york and that joe is a grandfather and that joe is I and that joe is joe|Joe and that joe is 40 years old stock trader from new york and that joe is joe s nameself and that joe have a brother named kerem and that joe speak I and that joe speak joe|Joe and that joe speak 40 years old stock trader from new york and that joe speak joe s nameself and that joe '-s the grandpa of agent and that joe give-leolani I and that joe give-leolani joe|Joe and that joe give-leolani 40 years old stock trader from new york and that joe give-leolani joe s nameself and that joe am-happy-to I and that joe am-happy-to joe|Joe and that joe am-happy-to 40 years old stock trader from new york and that joe am-happy-to joe s nameself and Joe|Joe told me joe know it and that joe know this and that joe know 2 person and that joe live-in new york and that joe is curious and that joe is sure and that joe is ancestor of person and that joe is an ancestor of a person and that joe is 40 years old and that joe have several conversations and that joe have many colleagues and that joe have parents and that joe have siblings and that joe want eat pizza and that joe hear I and that joe hear it and that joe hear this and that joe hear 40 years old and that joe hear geographic locations that have siblings parents and that joe hear anna and that joe do not hear moh and that joe work a stock trader in new york and that joe work a stock trader and that joe like-to eat pizza and that joe believe my too thanks and that joe told-leolani-about it and that joe told-leolani-about this and that joe told-leolani-about where and that joe live where and that joe do not trust I and that joe trust joe|Joe and that joe like-nao robot and that 40 years old isage"
+    test_in = 'I am curious. Has piek work at institution?'
+    key = '97b003f43e5e4d89a0444272828242c7.BMYErA3vAD-dNMfVQSOhyXai'
+    model = "gpt-oss:120b"
+    url = "https://ollama.com"
+    replier = LenkaReplier(model_name=model, model_server="cloud", model_url=url, model_key=key,
+                           instruct=INSTRUCT, llamalize=True, temperature=0.2,
+                           max_tokens=250, show_lenka=True,
+                           thought_selector=RandomSelector())
+    reply = replier.llamalize_reply(test_in)
+    print(reply)
+
