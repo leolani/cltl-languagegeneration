@@ -11,6 +11,8 @@ class ThoughtSelector(object):
     def select(self, options):
         raise NotImplementedError()
 
+    def score_response(self, context, response):
+        raise NotImplementedError()
 
 class Phraser(object):
 

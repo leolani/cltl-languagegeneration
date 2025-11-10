@@ -14,7 +14,7 @@ from cltl.reply_generation.api import ThoughtSelector
 
 
 class NSP(ThoughtSelector):
-    def __init__(self, filename):
+    def __init__(self, filename="google-bert/bert-base-multilingual-cased"):
         """Initializes an instance of BERT for Next Sentence Prediction (NSP).
 
         params
@@ -51,7 +51,9 @@ class NSP(ThoughtSelector):
         # Prob(is_next) using softmax
         return np.exp(logits[0]) / np.sum(np.exp(logits))
 
-    def select(self, scores):
+    def get_max_score(self, scores):
         scores.sort(key=lambda x: x[2], reverse=True)
 
         return scores[0]
+
+

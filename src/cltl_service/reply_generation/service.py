@@ -6,47 +6,47 @@ from cltl.brain.utils.helper_functions import brain_response_to_json
 from cltl.combot.event.emissor import TextSignalEvent
 from cltl.combot.infra.config import ConfigurationManager
 from cltl.combot.infra.event import Event, EventBus
-from cltl.combot.infra.event.util import extract_scenario_id
 from cltl.combot.infra.resource import ResourceManager
 from cltl.combot.infra.time_util import timestamp_now
 from cltl.combot.infra.topic_worker import TopicWorker
 from cltl.commons.discrete import UtteranceType
 from cltl_service.emissordata.client import EmissorDataClient
 from emissor.representation.scenario import TextSignal
+from cltl.reply_generation.thought_selectors.nsp_selector import NSP
 
 from cltl.reply_generation.api import BasicReplier
 
 logger = logging.getLogger(__name__)
 
 
+CONTENT_TYPE_SEPARATOR = ';'
+
 class ReplyGenerationService:
     @classmethod
-    def from_config(cls, repliers: List[BasicReplier], event_bus: EventBus,
-                    resource_manager: ResourceManager,
+    def from_config(cls, repliers: List[BasicReplier], emissor_data: EmissorDataClient, event_bus: EventBus, resource_manager: ResourceManager,
                     config_manager: ConfigurationManager):
         config = config_manager.get_config("cltl.reply_generation")
-        thought_options = config.get("thought_options", multi=True) \
-            if "thought_options" in config \
-            else ['_complement_conflict', '_negation_conflicts', '_statement_novelty', '_entity_novelty',
-                  '_subject_gaps', '_complement_gaps', '_overlaps', '_trust']
-        utterance_types = [UtteranceType[t.upper()] for t in config.get("utterance_types", multi=True)] \
-            if "utterance_types" in config \
-            else [UtteranceType.QUESTION, UtteranceType.STATEMENT, UtteranceType.TEXT_MENTION]
 
-        buffer_size = config.get_int("buffer_size") if "buffer_size" in config else 1
+        thought_options = config.get("thought_options", multi=True) \
+                if "thought_options" in config \
+                else ['_complement_conflict', '_negation_conflicts', '_statement_novelty', '_entity_novelty',
+                      '_subject_gaps', '_complement_gaps', '_overlaps', '_trust']
+        utterance_types = [UtteranceType[t.upper()] for t in config.get("utterance_types", multi=True)] \
+                if "utterance_types" in config \
+                else [UtteranceType.QUESTION, UtteranceType.STATEMENT, UtteranceType.TEXT_MENTION]
 
         return cls(config.get("topic_input"), config.get("topic_output"),
                    config.get("intentions", multi=True), config.get("topic_intention"),
-                   repliers, utterance_types, thought_options, buffer_size, event_bus, resource_manager)
+                   repliers, utterance_types, thought_options, emissor_data, event_bus, resource_manager)
 
     def __init__(self, input_topic: str, output_topic: str, intentions: Iterable[str], intention_topic: str,
                  repliers: List[BasicReplier], utterance_types: List[UtteranceType], thought_options: List[str],
-                 buffer_size: int, event_bus: EventBus, resource_manager: ResourceManager):
+                 emissor_data: EmissorDataClient, event_bus: EventBus, resource_manager: ResourceManager):
         self._repliers = repliers
         self._utterance_types = utterance_types
         self._thought_options = thought_options
 
-        self._buffer_size = buffer_size
+        self._emissor_data = emissor_data
         self._event_bus = event_bus
         self._resource_manager = resource_manager
 
@@ -55,6 +55,7 @@ class ReplyGenerationService:
         self._intentions = intentions
         self._intention_topic = intention_topic
         self._topic_worker = None
+        self._chat = None
 
     @property
     def app(self):
@@ -63,8 +64,7 @@ class ReplyGenerationService:
     def start(self, timeout=30):
         self._topic_worker = TopicWorker([self._input_topic], self._event_bus, provides=[self._output_topic],
                                          resource_manager=self._resource_manager, processor=self._process,
-                                         buffer_size=self._buffer_size,
-                                         intentions=self._intentions, intention_topic=self._intention_topic,
+                                         intentions=self._intentions, intention_topic = self._intention_topic,
                                          name=self.__class__.__name__)
         self._topic_worker.start().wait()
 
@@ -77,26 +77,15 @@ class ReplyGenerationService:
         self._topic_worker = None
 
     def _process(self, event: Event[List[dict]]):
-        response = None
-        for brain_response in event.payload:
-            if 'text_response' in brain_response:
-                for replier in self._repliers:
-                    #print('brain_response:', brain_response)
-                    text = brain_response['text_response']
-                    response = replier.llamalize_reply(text)
-                    break
-        if not response:
-            brain_responses = [brain_response_to_json(brain_response) for brain_response in event.payload]
-            response = self._best_response(brain_responses)
+
+        brain_responses = [brain_response_to_json(brain_response) for brain_response in event.payload]
+        response = self._best_response(brain_responses)
         if response:
-            scenario_id = extract_scenario_id(event)
-            extractor_event = self._create_payload(scenario_id, response)
-            self._event_bus.publish(self._output_topic, Event.for_payload(extractor_event, source=event))
+            extractor_event = self._create_payload(response)
+            self._event_bus.publish(self._output_topic, Event.for_payload(extractor_event))
             logger.debug("Created reply: %s", extractor_event.signal.text)
 
     def _best_response(self, brain_responses):
-        # logger.debug("Brain responses: %s", brain_responses)
-
         # Prioritize replies by utterance type first, then by replier, then choose random
         typed_responses = [(self._get_utterance_type(response), response) for response in brain_responses]
         typed_responses = filter(lambda x: x[0] in self._utterance_types, typed_responses)
@@ -104,13 +93,13 @@ class ReplyGenerationService:
         ordered_responses = [(utt_type, replier, response)
                              for utt_type, response in self._ordered_by_type(typed_responses)
                              for replier in self._repliers]
-        #  logger.debug("Ordered responses: %s", ordered_responses)
 
         if not ordered_responses:
             logger.debug("No responses for %s", brain_responses)
             return None
 
         replies = map(self._get_reply, *zip(*ordered_responses))
+
         return next(filter(None, replies), None)
 
     def _ordered_by_type(self, typed_responses: Tuple[UtteranceType, str]) -> Tuple[UtteranceType, str]:
@@ -124,7 +113,10 @@ class ReplyGenerationService:
 
     def _get_reply(self, utterance_type, replier, response):
         if utterance_type == UtteranceType.STATEMENT:
-            return replier.reply_to_statement(response, persist=True, thought_options=self._thought_options)
+            if type(replier._thought_selector) == NSP:
+                return replier.reply_to_statement_in_context(brain_response=response, persist=True, thought_options=self._thought_options)
+            else:
+                return replier.reply_to_statement(brain_response=response, persist=True, thought_options=self._thought_options)
         if utterance_type == UtteranceType.QUESTION:
             return replier.reply_to_question(response)
         if utterance_type == UtteranceType.TEXT_MENTION:
@@ -152,7 +144,32 @@ class ReplyGenerationService:
         except:
             return None
 
-    def _create_payload(self, scenario_id, response):
+    def _create_payload(self, response):
+        scenario_id = self._emissor_data.get_current_scenario_id()
         signal = TextSignal.for_scenario(scenario_id, timestamp_now(), timestamp_now(), None, response)
 
         return TextSignalEvent.for_agent(signal)
+
+    def _update_chat(self, event):
+        if event.payload.scenario.context.agent:
+            self._agent = event.payload.scenario.context.agent
+        if event.payload.scenario.context.speaker:
+            self._speaker = event.payload.scenario.context.speaker
+
+        if event.payload.type == ScenarioStarted.__name__:
+            agent_name = self._agent.name if self._agent.name else "Leolani"
+            speaker_name = self._speaker.name if self._speaker and self._speaker.name else "Stranger"
+            self._chat = Chat(agent_name, speaker_name)
+            logger.debug("Started chat with speaker %s, agent %s", self._chat.speaker, self._chat.agent)
+        elif event.payload.type == ScenarioStopped.__name__:
+            logger.debug("Stopping chat with %s, agent %s", self._chat.speaker, self._chat.agent)
+            self._chat = None
+            self._speaker = None
+            self._agent = None
+        elif event.payload.type == ScenarioEvent.__name__:
+            if self._speaker.name and self._speaker.name != self._chat.speaker:
+                self._chat.speaker = self._speaker.name
+                logger.debug("Set speaker in chat to %s", self._chat.speaker)
+            if self._agent.name and self._agent.name != self._chat.agent:
+                self._chat.agent = self._agent.name
+                logger.debug("Set agent in chat to %s", self._chat.agent)

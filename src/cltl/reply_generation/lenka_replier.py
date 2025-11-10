@@ -7,10 +7,11 @@ from cltl.commons.casefolding import casefold_capsule
 from cltl.commons.language_data.sentences import NO_ANSWER
 from cltl.commons.language_helpers import lexicon_lookup
 from cltl.commons.triple_helpers import filtered_types_names
-
+from cltl.triple_extraction.api import Chat, DialogueAct, Utterance
 from cltl.reply_generation.api import BasicReplier
 from cltl.reply_generation.phrasers.pattern_phraser import PatternPhraser
 from cltl.reply_generation.thought_selectors.random_selector import RandomSelector
+from cltl.reply_generation.thought_selectors.nsp_selector import NSP
 from cltl.reply_generation.utils.phraser_utils import replace_pronouns, assign_spo, deal_with_authors, fix_entity
 from ollama import Client
 
@@ -23,7 +24,7 @@ CONTENT_TYPE_SEPARATOR = ';'
 
 class LenkaReplier(BasicReplier):
     def __init__(self, model_name:str, model_server="cloud", model_url = "https://ollama.com", model_port = "9001", model_key = "", instruct=INSTRUCT, llamalize=False,
-                 temperature=0.2, max_tokens=250, show_lenka=False, thought_selector=RandomSelector()):
+                 temperature=0.2, max_tokens=250, show_lenka=False, thought_selector=NSP()):
     #def __init__(self,  model=None, instruct=None, llamalize= False, temperature=0.1, max_tokens=250, show_lenka=False, thought_selector = RandomSelector()):
         # type: (ThoughtSelector) -> None
         """
@@ -36,6 +37,7 @@ class LenkaReplier(BasicReplier):
             :type llama_model: object
         """
         super(LenkaReplier, self).__init__()
+        self._context = []
         self._thought_selector = thought_selector
         self._log.debug(f"Random Selector ready")
         self._phraser = PatternPhraser()
@@ -117,6 +119,19 @@ class LenkaReplier(BasicReplier):
             else:
                 self._log.info(f"There is no reply to paraphrase!")
         return response
+
+    def add_to_context(self, utterance):
+        self._context.append(utterance)
+
+    def get_context(self, size=3):
+        context = ""
+        if len(self._context)>size:
+            for utterance in self._context[-(size):]:
+                context += utterance+". "
+        else:
+            for utterance in self._context:
+                context += utterance + ". "
+        return context
 
     def reply_to_question(self, brain_response):
         # Quick check if there is anything to do here
@@ -341,6 +356,7 @@ class LenkaReplier(BasicReplier):
         if not 'triple'  in brain_response['statement']:
             return None
 
+        self._log.debug(f"Brain response: {brain_response}")
         # What types of thoughts will we phrase?
         if not thought_options:
             thought_options = ['_complement_conflict', '_negation_conflicts', '_statement_novelty', '_entity_novelty',
@@ -372,6 +388,75 @@ class LenkaReplier(BasicReplier):
                                                 end_recursion=end_recursion - 1)
         if self._llamalize:
             reply = self.llamalize_reply(reply)
+        return reply
+
+
+    def reply_to_statement_in_context(self, brain_response, persist=False, thought_options=None, end_recursion=5):
+        """
+        Phrase a thought based on the brain response
+        Parameters
+        ----------
+        brain_response: output of the brain
+        persist: Keep looping through thoughts until you find one to phrase
+        thought_options: Set from before which types of thoughts to consider in the phrasing
+        end_recursion: Signal for last recursion call
+
+        Returns
+        -------
+
+        """
+        # Quick check if there is anything to do here
+        if not 'triple'  in brain_response['statement']:
+            return None
+
+
+        self._log.debug(f"Brain response: {brain_response}")
+        # What types of thoughts will we phrase?
+        if not thought_options:
+            thought_options = ['_complement_conflict', '_negation_conflicts', '_statement_novelty', '_entity_novelty',
+                               '_subject_gaps', '_complement_gaps', '_overlaps', '_trust']
+        self._log.debug(f'Thoughts options: {thought_options}')
+
+        # Casefold
+        utterance = casefold_capsule(brain_response['statement'], format='natural')
+        thoughts = casefold_capsule(brain_response['thoughts'], format='natural')
+        last_utterance = utterance['utterance']
+        self._context.append(last_utterance)
+        context = self.get_context()
+
+        # Filter out None thoughts
+        thought_options = [option for option in thought_options if thoughts[option] is not None]
+
+        if not thought_options:
+            reply = self._phraser.phrase_fallback()
+        else:
+            score_max = 0.0
+            reply = None
+            for thought_type in thought_options:
+                self._log.info(f"Chosen thought type: {thought_type}")
+                if type(thoughts[thought_type])==list:
+                    for thought in thoughts[thought_type]:
+                        self._log.info(f"a thought: {thought}")
+                        possible_reply = self._phraser.phrase_correct_thought(utterance, thought_type, [thought],
+                                                                     fallback=end_recursion == 0)
+                        if possible_reply is not None and not "None" in possible_reply:
+                            score = self._thought_selector.score_response(context, possible_reply)
+                            self._log.info(f"Score: {score} with score: {possible_reply}")
+                            if score>score_max:
+                                score_max = score
+                                reply = possible_reply
+                else:
+                    possible_reply = self._phraser.phrase_correct_thought(utterance, thought_type, thoughts[thought_type],
+                                                                          fallback=end_recursion == 0)
+                    if possible_reply is not None and not "None" in possible_reply:
+                        score = self._thought_selector.score_response(context, possible_reply)
+                        self._log.info(f"Score: {score} with score: {possible_reply}")
+                        if score > score_max:
+                            score_max = score
+                            reply = possible_reply
+        if self._llamalize:
+            reply = self.llamalize_reply(reply)
+        self._context.append(reply)
         return reply
 
     def reply_to_mention(self, brain_response, persist=False, thought_options=None):
@@ -424,16 +509,2125 @@ class LenkaReplier(BasicReplier):
 
 
 
+
 if __name__ == "__main__":
     test_in = "Herman|Herman told me joe do not is married and that joe do not ring a bell and Joe told me joe like dogs and that joe be-from new york and that joe is a grandfather and that joe is I and that joe is joe|Joe and that joe is 40 years old stock trader from new york and that joe is joe s nameself and that joe have a brother named kerem and that joe speak I and that joe speak joe|Joe and that joe speak 40 years old stock trader from new york and that joe speak joe s nameself and that joe '-s the grandpa of agent and that joe give-leolani I and that joe give-leolani joe|Joe and that joe give-leolani 40 years old stock trader from new york and that joe give-leolani joe s nameself and that joe am-happy-to I and that joe am-happy-to joe|Joe and that joe am-happy-to 40 years old stock trader from new york and that joe am-happy-to joe s nameself and Joe|Joe told me joe know it and that joe know this and that joe know 2 person and that joe live-in new york and that joe is curious and that joe is sure and that joe is ancestor of person and that joe is an ancestor of a person and that joe is 40 years old and that joe have several conversations and that joe have many colleagues and that joe have parents and that joe have siblings and that joe want eat pizza and that joe hear I and that joe hear it and that joe hear this and that joe hear 40 years old and that joe hear geographic locations that have siblings parents and that joe hear anna and that joe do not hear moh and that joe work a stock trader in new york and that joe work a stock trader and that joe like-to eat pizza and that joe believe my too thanks and that joe told-leolani-about it and that joe told-leolani-about this and that joe told-leolani-about where and that joe live where and that joe do not trust I and that joe trust joe|Joe and that joe like-nao robot and that 40 years old isage"
     test_in = 'I am curious. Has piek work at institution?'
+
+    __brain_response = {'response': '204', 'statement':
+        {'chat': 'e3e2862a-300b-468e-9cc4-68ea611d3e9c', 'turn': '9652f6fc-e5e0-4dd2-a1f0-d43fe8545b52',
+         'author': {'label': 'Stranger', 'type': ['person'], 'uri': None},
+         'utterance': 'yes',
+         'utterance_type': 'STATEMENT',
+         'position': '0-3',
+         'subject': {'label': '', 'type': ['11z-11-eicosenyl-oleate'], 'uri': None},
+         'predicate': {'label': 'yes', 'type': [], 'uri': None},
+         'object': {'label': '', 'type': ['11z-11-eicosenyl-oleate'], 'uri': None},
+         'context_id': 'e3e2862a-300b-468e-9cc4-68ea611d3e9c',
+         'timestamp': 1762764826918,
+         'perspective': {'_certainty': 'CERTAIN', '_polarity': 'POSITIVE', '_sentiment': 'UNDERSPECIFIED',
+                         '_time': None, '_emotion': 'UNDERSPECIFIED'},
+         'triple': {
+             '_subject': {'_id': 'http://cltl.nl/leolani/world/', '_label': 'None', '_offset': None, '_confidence': 0.0,
+                          '_types': ['11z-11-eicosenyl-oleate', 'Instance']},
+             '_predicate': {'_id': 'http://cltl.nl/leolani/n2mu/yes', '_label': 'yes', '_offset': None,
+                            '_confidence': 0.0, '_cardinality': 1},
+             '_complement': {'_id': 'http://cltl.nl/leolani/world/', '_label': 'None', '_offset': None,
+                             '_confidence': 0.0, '_types': ['11z-11-eicosenyl-oleate', 'Instance']}}},
+                        'thoughts': {'_statement_novelty': [
+                            {'_provenance': {'_author': {'_id': 'http://cltl.nl/leolani/friends/stranger',
+                                                         '_label': 'stranger', '_offset': None, '_confidence': 0.0,
+                                                         '_types': ['Source', 'Actor']}, '_date': '2025-10-29'}}, {
+                                '_provenance': {
+                                    '_author': {'_id': 'http://cltl.nl/leolani/friends/fred', '_label': 'fred',
+                                                '_offset': None, '_confidence': 0.0, '_types': ['Source', 'Actor']},
+                                    '_date': '2025-10-30'}}],
+                                     '_entity_novelty': {'_subject': False, '_complement': False},
+                                     '_negation_conflicts': [{'_provenance': {
+                                         '_author': {'_id': 'http://cltl.nl/leolani/friends/stranger',
+                                                     '_label': 'stranger', '_offset': None, '_confidence': 0.0,
+                                                     '_types': ['Source', 'Actor']}, '_date': '2025-10-29'},
+                                                              '_polarity_value': 'POSITIVE'}, {'_provenance': {
+                                         '_author': {'_id': 'http://cltl.nl/leolani/friends/fred', '_label': 'fred',
+                                                     '_offset': None, '_confidence': 0.0,
+                                                     '_types': ['Source', 'Actor']}, '_date': '2025-10-30'},
+                                                                                               '_polarity_value': 'POSITIVE'},
+                                                             {'_provenance': {'_author': {
+                                                                 '_id': 'http://cltl.nl/leolani/friends/stranger',
+                                                                 '_label': 'stranger', '_offset': None,
+                                                                 '_confidence': 0.0, '_types': ['Source', 'Actor']},
+                                                                              '_date': '2025-11-10'},
+                                                              '_polarity_value': 'POSITIVE'}],
+                                     '_complement_conflict': [],
+                                     '_subject_gaps': {'_subject': [{'_known_entity': {
+                                         '_id': 'http://cltl.nl/leolani/world/', '_label': 'None', '_offset': None,
+                                         '_confidence': 0.0, '_types': ['11z-11-eicosenyl-oleate', 'Instance']},
+                                                                     '_predicate': {
+                                                                         '_id': 'http://cltl.nl/leolani/n2mu/be-brother-of',
+                                                                         '_label': 'be-brother-of', '_offset': None,
+                                                                         '_confidence': 0.0, '_cardinality': 1},
+                                                                     '_entity': {'_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                                 '_label': '', '_offset': None,
+                                                                                 '_confidence': 0.0,
+                                                                                 '_types': ['person']}},
+                                                                    {'_known_entity': {
+                                                                        '_id': 'http://cltl.nl/leolani/world/',
+                                                                        '_label': 'None', '_offset': None,
+                                                                        '_confidence': 0.0,
+                                                                        '_types': ['11z-11-eicosenyl-oleate',
+                                                                                   'Instance']},
+                                                                     '_predicate': {
+                                                                         '_id': 'http://cltl.nl/leolani/n2mu/be-sibling-of',
+                                                                         '_label': 'be-sibling-of', '_offset': None,
+                                                                         '_confidence': 0.0, '_cardinality': 1},
+                                                                     '_entity': {'_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                                 '_label': '', '_offset': None,
+                                                                                 '_confidence': 0.0,
+                                                                                 '_types': ['person']}},
+                                                                    {'_known_entity': {
+                                                                        '_id': 'http://cltl.nl/leolani/world/',
+                                                                        '_label': 'None', '_offset': None,
+                                                                        '_confidence': 0.0,
+                                                                        '_types': ['11z-11-eicosenyl-oleate',
+                                                                                   'Instance']},
+                                                                     '_predicate': {
+                                                                         '_id': 'http://cltl.nl/leolani/n2mu/be-daughter-of',
+                                                                         '_label': 'be-daughter-of', '_offset': None,
+                                                                         '_confidence': 0.0, '_cardinality': 1},
+                                                                     '_entity': {'_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                                 '_label': '', '_offset': None,
+                                                                                 '_confidence': 0.0,
+                                                                                 '_types': ['person']}},
+                                                                    {'_known_entity': {
+                                                                        '_id': 'http://cltl.nl/leolani/world/',
+                                                                        '_label': 'None', '_offset': None,
+                                                                        '_confidence': 0.0,
+                                                                        '_types': ['11z-11-eicosenyl-oleate',
+                                                                                   'Instance']},
+                                                                     '_predicate': {
+                                                                         '_id': 'http://cltl.nl/leolani/n2mu/be-child-of',
+                                                                         '_label': 'be-child-of', '_offset': None,
+                                                                         '_confidence': 0.0, '_cardinality': 1},
+                                                                     '_entity': {'_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                                 '_label': '', '_offset': None,
+                                                                                 '_confidence': 0.0,
+                                                                                 '_types': ['person']}},
+                                                                    {'_known_entity': {
+                                                                        '_id': 'http://cltl.nl/leolani/world/',
+                                                                        '_label': 'None', '_offset': None,
+                                                                        '_confidence': 0.0,
+                                                                        '_types': ['11z-11-eicosenyl-oleate',
+                                                                                   'Instance']},
+                                                                     '_predicate': {
+                                                                         '_id': 'http://cltl.nl/leolani/n2mu/be-son-of',
+                                                                         '_label': 'be-son-of', '_offset': None,
+                                                                         '_confidence': 0.0, '_cardinality': 1},
+                                                                     '_entity': {'_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                                 '_label': '', '_offset': None,
+                                                                                 '_confidence': 0.0,
+                                                                                 '_types': ['person']}},
+                                                                    {'_known_entity': {
+                                                                        '_id': 'http://cltl.nl/leolani/world/',
+                                                                        '_label': 'None', '_offset': None,
+                                                                        '_confidence': 0.0,
+                                                                        '_types': ['11z-11-eicosenyl-oleate',
+                                                                                   'Instance']},
+                                                                     '_predicate': {
+                                                                         '_id': 'http://cltl.nl/leolani/n2mu/be-father-of',
+                                                                         '_label': 'be-father-of', '_offset': None,
+                                                                         '_confidence': 0.0, '_cardinality': 1},
+                                                                     '_entity': {'_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                                 '_label': '', '_offset': None,
+                                                                                 '_confidence': 0.0,
+                                                                                 '_types': ['person']}},
+                                                                    {'_known_entity': {
+                                                                        '_id': 'http://cltl.nl/leolani/world/',
+                                                                        '_label': 'None', '_offset': None,
+                                                                        '_confidence': 0.0,
+                                                                        '_types': ['11z-11-eicosenyl-oleate',
+                                                                                   'Instance']},
+                                                                     '_predicate': {
+                                                                         '_id': 'http://cltl.nl/leolani/n2mu/be-parent-of',
+                                                                         '_label': 'be-parent-of', '_offset': None,
+                                                                         '_confidence': 0.0, '_cardinality': 1},
+                                                                     '_entity': {'_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                                 '_label': '', '_offset': None,
+                                                                                 '_confidence': 0.0,
+                                                                                 '_types': ['person']}},
+                                                                    {'_known_entity': {
+                                                                        '_id': 'http://cltl.nl/leolani/world/',
+                                                                        '_label': 'None', '_offset': None,
+                                                                        '_confidence': 0.0,
+                                                                        '_types': ['11z-11-eicosenyl-oleate',
+                                                                                   'Instance']},
+                                                                     '_predicate': {
+                                                                         '_id': 'http://cltl.nl/leolani/n2mu/be-mother-of',
+                                                                         '_label': 'be-mother-of', '_offset': None,
+                                                                         '_confidence': 0.0, '_cardinality': 1},
+                                                                     '_entity': {'_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                                 '_label': '', '_offset': None,
+                                                                                 '_confidence': 0.0,
+                                                                                 '_types': ['person']}},
+                                                                    {'_known_entity': {
+                                                                        '_id': 'http://cltl.nl/leolani/world/',
+                                                                        '_label': 'None', '_offset': None,
+                                                                        '_confidence': 0.0,
+                                                                        '_types': ['11z-11-eicosenyl-oleate',
+                                                                                   'Instance']},
+                                                                     '_predicate': {
+                                                                         '_id': 'http://cltl.nl/leolani/n2mu/be-grandfather-of',
+                                                                         '_label': 'be-grandfather-of', '_offset': None,
+                                                                         '_confidence': 0.0, '_cardinality': 1},
+                                                                     '_entity': {'_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                                 '_label': '', '_offset': None,
+                                                                                 '_confidence': 0.0,
+                                                                                 '_types': ['person']}},
+                                                                    {'_known_entity': {
+                                                                        '_id': 'http://cltl.nl/leolani/world/',
+                                                                        '_label': 'None', '_offset': None,
+                                                                        '_confidence': 0.0,
+                                                                        '_types': ['11z-11-eicosenyl-oleate',
+                                                                                   'Instance']},
+                                                                     '_predicate': {
+                                                                         '_id': 'http://cltl.nl/leolani/n2mu/be-grandparent-of',
+                                                                         '_label': 'be-grandparent-of', '_offset': None,
+                                                                         '_confidence': 0.0, '_cardinality': 1},
+                                                                     '_entity': {'_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                                 '_label': '', '_offset': None,
+                                                                                 '_confidence': 0.0,
+                                                                                 '_types': ['person']}},
+                                                                    {'_known_entity': {
+                                                                        '_id': 'http://cltl.nl/leolani/world/',
+                                                                        '_label': 'None', '_offset': None,
+                                                                        '_confidence': 0.0,
+                                                                        '_types': ['11z-11-eicosenyl-oleate',
+                                                                                   'Instance']},
+                                                                     '_predicate': {
+                                                                         '_id': 'http://cltl.nl/leolani/n2mu/be-grandmother-of',
+                                                                         '_label': 'be-grandmother-of', '_offset': None,
+                                                                         '_confidence': 0.0, '_cardinality': 1},
+                                                                     '_entity': {'_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                                 '_label': '', '_offset': None,
+                                                                                 '_confidence': 0.0,
+                                                                                 '_types': ['person']}},
+                                                                    {'_known_entity': {
+                                                                        '_id': 'http://cltl.nl/leolani/world/',
+                                                                        '_label': 'None', '_offset': None,
+                                                                        '_confidence': 0.0,
+                                                                        '_types': ['11z-11-eicosenyl-oleate',
+                                                                                   'Instance']},
+                                                                     '_predicate': {
+                                                                         '_id': 'http://cltl.nl/leolani/n2mu/be-husband-of',
+                                                                         '_label': 'be-husband-of', '_offset': None,
+                                                                         '_confidence': 0.0, '_cardinality': 1},
+                                                                     '_entity': {'_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                                 '_label': '', '_offset': None,
+                                                                                 '_confidence': 0.0,
+                                                                                 '_types': ['person']}},
+                                                                    {'_known_entity': {
+                                                                        '_id': 'http://cltl.nl/leolani/world/',
+                                                                        '_label': 'None', '_offset': None,
+                                                                        '_confidence': 0.0,
+                                                                        '_types': ['11z-11-eicosenyl-oleate',
+                                                                                   'Instance']},
+                                                                     '_predicate': {
+                                                                         '_id': 'http://cltl.nl/leolani/n2mu/be-spouse-of',
+                                                                         '_label': 'be-spouse-of', '_offset': None,
+                                                                         '_confidence': 0.0, '_cardinality': 1},
+                                                                     '_entity': {'_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                                 '_label': '', '_offset': None,
+                                                                                 '_confidence': 0.0,
+                                                                                 '_types': ['person']}},
+                                                                    {'_known_entity': {
+                                                                        '_id': 'http://cltl.nl/leolani/world/',
+                                                                        '_label': 'None', '_offset': None,
+                                                                        '_confidence': 0.0,
+                                                                        '_types': ['11z-11-eicosenyl-oleate',
+                                                                                   'Instance']},
+                                                                     '_predicate': {
+                                                                         '_id': 'http://cltl.nl/leolani/n2mu/be-wife-of',
+                                                                         '_label': 'be-wife-of', '_offset': None,
+                                                                         '_confidence': 0.0, '_cardinality': 1},
+                                                                     '_entity': {'_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                                 '_label': '', '_offset': None,
+                                                                                 '_confidence': 0.0,
+                                                                                 '_types': ['person']}},
+                                                                    {'_known_entity': {
+                                                                        '_id': 'http://cltl.nl/leolani/world/',
+                                                                        '_label': 'None', '_offset': None,
+                                                                        '_confidence': 0.0,
+                                                                        '_types': ['11z-11-eicosenyl-oleate',
+                                                                                   'Instance']},
+                                                                     '_predicate': {
+                                                                         '_id': 'http://cltl.nl/leolani/n2mu/be-partner-of',
+                                                                         '_label': 'be-partner-of', '_offset': None,
+                                                                         '_confidence': 0.0, '_cardinality': 1},
+                                                                     '_entity': {'_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                                 '_label': '', '_offset': None,
+                                                                                 '_confidence': 0.0,
+                                                                                 '_types': ['person']}},
+                                                                    {'_known_entity': {
+                                                                        '_id': 'http://cltl.nl/leolani/world/',
+                                                                        '_label': 'None', '_offset': None,
+                                                                        '_confidence': 0.0,
+                                                                        '_types': ['11z-11-eicosenyl-oleate',
+                                                                                   'Instance']},
+                                                                     '_predicate': {
+                                                                         '_id': 'http://cltl.nl/leolani/n2mu/be-sister-of',
+                                                                         '_label': 'be-sister-of', '_offset': None,
+                                                                         '_confidence': 0.0, '_cardinality': 1},
+                                                                     '_entity': {'_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                                 '_label': '', '_offset': None,
+                                                                                 '_confidence': 0.0,
+                                                                                 '_types': ['person']}},
+                                                                    {'_known_entity': {
+                                                                        '_id': 'http://cltl.nl/leolani/world/',
+                                                                        '_label': 'None', '_offset': None,
+                                                                        '_confidence': 0.0,
+                                                                        '_types': ['11z-11-eicosenyl-oleate',
+                                                                                   'Instance']}, '_predicate': {
+                                                                        '_id': 'http://cltl.nl/leolani/n2mu/born-in',
+                                                                        '_label': 'born-in', '_offset': None,
+                                                                        '_confidence': 0.0, '_cardinality': 1},
+                                                                     '_entity': {'_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                                 '_label': '', '_offset': None,
+                                                                                 '_confidence': 0.0,
+                                                                                 '_types': ['location']}},
+                                                                    {'_known_entity': {
+                                                                        '_id': 'http://cltl.nl/leolani/world/',
+                                                                        '_label': 'None', '_offset': None,
+                                                                        '_confidence': 0.0,
+                                                                        '_types': ['11z-11-eicosenyl-oleate',
+                                                                                   'Instance']}, '_predicate': {
+                                                                        '_id': 'http://cltl.nl/leolani/n2mu/cook',
+                                                                        '_label': 'cook', '_offset': None,
+                                                                        '_confidence': 0.0, '_cardinality': 1},
+                                                                     '_entity': {'_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                                 '_label': '', '_offset': None,
+                                                                                 '_confidence': 0.0,
+                                                                                 '_types': ['food']}},
+                                                                    {'_known_entity': {
+                                                                        '_id': 'http://cltl.nl/leolani/world/',
+                                                                        '_label': 'None', '_offset': None,
+                                                                        '_confidence': 0.0,
+                                                                        '_types': ['11z-11-eicosenyl-oleate',
+                                                                                   'Instance']}, '_predicate': {
+                                                                        '_id': 'http://cltl.nl/leolani/n2mu/create',
+                                                                        '_label': 'create', '_offset': None,
+                                                                        '_confidence': 0.0, '_cardinality': 1},
+                                                                     '_entity': {'_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                                 '_label': '', '_offset': None,
+                                                                                 '_confidence': 0.0,
+                                                                                 '_types': ['artifact', 'object']}},
+                                                                    {'_known_entity': {
+                                                                        '_id': 'http://cltl.nl/leolani/world/',
+                                                                        '_label': 'None', '_offset': None,
+                                                                        '_confidence': 0.0,
+                                                                        '_types': ['11z-11-eicosenyl-oleate',
+                                                                                   'Instance']}, '_predicate': {
+                                                                        '_id': 'http://cltl.nl/leolani/n2mu/eat',
+                                                                        '_label': 'eat', '_offset': None,
+                                                                        '_confidence': 0.0, '_cardinality': 1},
+                                                                     '_entity': {'_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                                 '_label': '', '_offset': None,
+                                                                                 '_confidence': 0.0,
+                                                                                 '_types': ['food']}},
+                                                                    {'_known_entity': {
+                                                                        '_id': 'http://cltl.nl/leolani/world/',
+                                                                        '_label': 'None', '_offset': None,
+                                                                        '_confidence': 0.0,
+                                                                        '_types': ['11z-11-eicosenyl-oleate',
+                                                                                   'Instance']}, '_predicate': {
+                                                                        '_id': 'http://cltl.nl/leolani/n2mu/have-breakfast',
+                                                                        '_label': 'have-breakfast', '_offset': None,
+                                                                        '_confidence': 0.0, '_cardinality': 1},
+                                                                     '_entity': {'_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                                 '_label': '', '_offset': None,
+                                                                                 '_confidence': 0.0,
+                                                                                 '_types': ['food']}},
+                                                                    {'_known_entity': {
+                                                                        '_id': 'http://cltl.nl/leolani/world/',
+                                                                        '_label': 'None', '_offset': None,
+                                                                        '_confidence': 0.0,
+                                                                        '_types': ['11z-11-eicosenyl-oleate',
+                                                                                   'Instance']}, '_predicate': {
+                                                                        '_id': 'http://cltl.nl/leolani/n2mu/have-dinner',
+                                                                        '_label': 'have-dinner', '_offset': None,
+                                                                        '_confidence': 0.0, '_cardinality': 1},
+                                                                     '_entity': {'_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                                 '_label': '', '_offset': None,
+                                                                                 '_confidence': 0.0,
+                                                                                 '_types': ['food']}},
+                                                                    {'_known_entity': {
+                                                                        '_id': 'http://cltl.nl/leolani/world/',
+                                                                        '_label': 'None', '_offset': None,
+                                                                        '_confidence': 0.0,
+                                                                        '_types': ['11z-11-eicosenyl-oleate',
+                                                                                   'Instance']}, '_predicate': {
+                                                                        '_id': 'http://cltl.nl/leolani/n2mu/have-lunch',
+                                                                        '_label': 'have-lunch', '_offset': None,
+                                                                        '_confidence': 0.0, '_cardinality': 1},
+                                                                     '_entity': {'_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                                 '_label': '', '_offset': None,
+                                                                                 '_confidence': 0.0,
+                                                                                 '_types': ['food']}},
+                                                                    {'_known_entity': {
+                                                                        '_id': 'http://cltl.nl/leolani/world/',
+                                                                        '_label': 'None', '_offset': None,
+                                                                        '_confidence': 0.0,
+                                                                        '_types': ['11z-11-eicosenyl-oleate',
+                                                                                   'Instance']}, '_predicate': {
+                                                                        '_id': 'http://cltl.nl/leolani/n2mu/prepare-drink',
+                                                                        '_label': 'prepare-drink', '_offset': None,
+                                                                        '_confidence': 0.0, '_cardinality': 1},
+                                                                     '_entity': {'_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                                 '_label': '', '_offset': None,
+                                                                                 '_confidence': 0.0,
+                                                                                 '_types': ['drink']}},
+                                                                    {'_known_entity': {
+                                                                        '_id': 'http://cltl.nl/leolani/world/',
+                                                                        '_label': 'None', '_offset': None,
+                                                                        '_confidence': 0.0,
+                                                                        '_types': ['11z-11-eicosenyl-oleate',
+                                                                                   'Instance']}, '_predicate': {
+                                                                        '_id': 'http://cltl.nl/leolani/n2mu/drink',
+                                                                        '_label': 'drink', '_offset': None,
+                                                                        '_confidence': 0.0, '_cardinality': 1},
+                                                                     '_entity': {'_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                                 '_label': '', '_offset': None,
+                                                                                 '_confidence': 0.0,
+                                                                                 '_types': ['drink']}},
+                                                                    {'_known_entity': {
+                                                                        '_id': 'http://cltl.nl/leolani/world/',
+                                                                        '_label': 'None', '_offset': None,
+                                                                        '_confidence': 0.0,
+                                                                        '_types': ['11z-11-eicosenyl-oleate',
+                                                                                   'Instance']}, '_predicate': {
+                                                                        '_id': 'http://cltl.nl/leolani/n2mu/write',
+                                                                        '_label': 'write', '_offset': None,
+                                                                        '_confidence': 0.0, '_cardinality': 1},
+                                                                     '_entity': {'_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                                 '_label': '', '_offset': None,
+                                                                                 '_confidence': 0.0,
+                                                                                 '_types': ['book']}},
+                                                                    {'_known_entity': {
+                                                                        '_id': 'http://cltl.nl/leolani/world/',
+                                                                        '_label': 'None', '_offset': None,
+                                                                        '_confidence': 0.0,
+                                                                        '_types': ['11z-11-eicosenyl-oleate',
+                                                                                   'Instance']}, '_predicate': {
+                                                                        '_id': 'http://cltl.nl/leolani/n2mu/be-descendant-of',
+                                                                        '_label': 'be-descendant-of', '_offset': None,
+                                                                        '_confidence': 0.0, '_cardinality': 1},
+                                                                     '_entity': {'_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                                 '_label': '', '_offset': None,
+                                                                                 '_confidence': 0.0,
+                                                                                 '_types': ['person']}},
+                                                                    {'_known_entity': {
+                                                                        '_id': 'http://cltl.nl/leolani/world/',
+                                                                        '_label': 'None', '_offset': None,
+                                                                        '_confidence': 0.0,
+                                                                        '_types': ['11z-11-eicosenyl-oleate',
+                                                                                   'Instance']}, '_predicate': {
+                                                                        '_id': 'http://cltl.nl/leolani/n2mu/be-family-of',
+                                                                        '_label': 'be-family-of', '_offset': None,
+                                                                        '_confidence': 0.0, '_cardinality': 1},
+                                                                     '_entity': {'_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                                 '_label': '', '_offset': None,
+                                                                                 '_confidence': 0.0,
+                                                                                 '_types': ['person']}},
+                                                                    {'_known_entity': {
+                                                                        '_id': 'http://cltl.nl/leolani/world/',
+                                                                        '_label': 'None', '_offset': None,
+                                                                        '_confidence': 0.0,
+                                                                        '_types': ['11z-11-eicosenyl-oleate',
+                                                                                   'Instance']}, '_predicate': {
+                                                                        '_id': 'http://cltl.nl/leolani/n2mu/be-ancestor-of',
+                                                                        '_label': 'be-ancestor-of', '_offset': None,
+                                                                        '_confidence': 0.0, '_cardinality': 1},
+                                                                     '_entity': {'_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                                 '_label': '', '_offset': None,
+                                                                                 '_confidence': 0.0,
+                                                                                 '_types': ['person']}},
+                                                                    {'_known_entity': {
+                                                                        '_id': 'http://cltl.nl/leolani/world/',
+                                                                        '_label': 'None', '_offset': None,
+                                                                        '_confidence': 0.0,
+                                                                        '_types': ['11z-11-eicosenyl-oleate',
+                                                                                   'Instance']}, '_predicate': {
+                                                                        '_id': 'http://cltl.nl/leolani/n2mu/be-colleague-of',
+                                                                        '_label': 'be-colleague-of', '_offset': None,
+                                                                        '_confidence': 0.0, '_cardinality': 1},
+                                                                     '_entity': {'_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                                 '_label': '', '_offset': None,
+                                                                                 '_confidence': 0.0,
+                                                                                 '_types': ['agent']}},
+                                                                    {'_known_entity': {
+                                                                        '_id': 'http://cltl.nl/leolani/world/',
+                                                                        '_label': 'None', '_offset': None,
+                                                                        '_confidence': 0.0,
+                                                                        '_types': ['11z-11-eicosenyl-oleate',
+                                                                                   'Instance']}, '_predicate': {
+                                                                        '_id': 'http://cltl.nl/leolani/n2mu/know',
+                                                                        '_label': 'know', '_offset': None,
+                                                                        '_confidence': 0.0, '_cardinality': 1},
+                                                                     '_entity': {'_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                                 '_label': '', '_offset': None,
+                                                                                 '_confidence': 0.0,
+                                                                                 '_types': ['agent']}},
+                                                                    {'_known_entity': {
+                                                                        '_id': 'http://cltl.nl/leolani/world/',
+                                                                        '_label': 'None', '_offset': None,
+                                                                        '_confidence': 0.0,
+                                                                        '_types': ['11z-11-eicosenyl-oleate',
+                                                                                   'Instance']}, '_predicate': {
+                                                                        '_id': 'http://cltl.nl/leolani/n2mu/be-friends-with',
+                                                                        '_label': 'be-friends-with', '_offset': None,
+                                                                        '_confidence': 0.0, '_cardinality': 1},
+                                                                     '_entity': {'_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                                 '_label': '', '_offset': None,
+                                                                                 '_confidence': 0.0,
+                                                                                 '_types': ['agent']}},
+                                                                    {'_known_entity': {
+                                                                        '_id': 'http://cltl.nl/leolani/world/',
+                                                                        '_label': 'None', '_offset': None,
+                                                                        '_confidence': 0.0,
+                                                                        '_types': ['11z-11-eicosenyl-oleate',
+                                                                                   'Instance']}, '_predicate': {
+                                                                        '_id': 'http://cltl.nl/leolani/n2mu/be-from',
+                                                                        '_label': 'be-from', '_offset': None,
+                                                                        '_confidence': 0.0, '_cardinality': 1},
+                                                                     '_entity': {'_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                                 '_label': '', '_offset': None,
+                                                                                 '_confidence': 0.0,
+                                                                                 '_types': ['location']}},
+                                                                    {'_known_entity': {
+                                                                        '_id': 'http://cltl.nl/leolani/world/',
+                                                                        '_label': 'None', '_offset': None,
+                                                                        '_confidence': 0.0,
+                                                                        '_types': ['11z-11-eicosenyl-oleate',
+                                                                                   'Instance']}, '_predicate': {
+                                                                        '_id': 'http://cltl.nl/leolani/n2mu/listen-to',
+                                                                        '_label': 'listen-to', '_offset': None,
+                                                                        '_confidence': 0.0, '_cardinality': 1},
+                                                                     '_entity': {'_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                                 '_label': '', '_offset': None,
+                                                                                 '_confidence': 0.0,
+                                                                                 '_types': ['musical-work']}},
+                                                                    {'_known_entity': {
+                                                                        '_id': 'http://cltl.nl/leolani/world/',
+                                                                        '_label': 'None', '_offset': None,
+                                                                        '_confidence': 0.0,
+                                                                        '_types': ['11z-11-eicosenyl-oleate',
+                                                                                   'Instance']}, '_predicate': {
+                                                                        '_id': 'http://cltl.nl/leolani/n2mu/live-in',
+                                                                        '_label': 'live-in', '_offset': None,
+                                                                        '_confidence': 0.0, '_cardinality': 1},
+                                                                     '_entity': {'_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                                 '_label': '', '_offset': None,
+                                                                                 '_confidence': 0.0,
+                                                                                 '_types': ['location']}},
+                                                                    {'_known_entity': {
+                                                                        '_id': 'http://cltl.nl/leolani/world/',
+                                                                        '_label': 'None', '_offset': None,
+                                                                        '_confidence': 0.0,
+                                                                        '_types': ['11z-11-eicosenyl-oleate',
+                                                                                   'Instance']}, '_predicate': {
+                                                                        '_id': 'http://cltl.nl/leolani/n2mu/love',
+                                                                        '_label': 'love', '_offset': None,
+                                                                        '_confidence': 0.0, '_cardinality': 1},
+                                                                     '_entity': {'_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                                 '_label': '', '_offset': None,
+                                                                                 '_confidence': 0.0,
+                                                                                 '_types': ['agent']}},
+                                                                    {'_known_entity': {
+                                                                        '_id': 'http://cltl.nl/leolani/world/',
+                                                                        '_label': 'None', '_offset': None,
+                                                                        '_confidence': 0.0,
+                                                                        '_types': ['11z-11-eicosenyl-oleate',
+                                                                                   'Instance']}, '_predicate': {
+                                                                        '_id': 'http://cltl.nl/leolani/n2mu/like',
+                                                                        '_label': 'like', '_offset': None,
+                                                                        '_confidence': 0.0, '_cardinality': 1},
+                                                                     '_entity': {'_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                                 '_label': '', '_offset': None,
+                                                                                 '_confidence': 0.0,
+                                                                                 '_types': ['agent']}},
+                                                                    {'_known_entity': {
+                                                                        '_id': 'http://cltl.nl/leolani/world/',
+                                                                        '_label': 'None', '_offset': None,
+                                                                        '_confidence': 0.0,
+                                                                        '_types': ['11z-11-eicosenyl-oleate',
+                                                                                   'Instance']}, '_predicate': {
+                                                                        '_id': 'http://cltl.nl/leolani/n2mu/music',
+                                                                        '_label': 'music', '_offset': None,
+                                                                        '_confidence': 0.0, '_cardinality': 1},
+                                                                     '_entity': {'_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                                 '_label': '', '_offset': None,
+                                                                                 '_confidence': 0.0,
+                                                                                 '_types': ['musical-work']}},
+                                                                    {'_known_entity': {
+                                                                        '_id': 'http://cltl.nl/leolani/world/',
+                                                                        '_label': 'None', '_offset': None,
+                                                                        '_confidence': 0.0,
+                                                                        '_types': ['11z-11-eicosenyl-oleate',
+                                                                                   'Instance']}, '_predicate': {
+                                                                        '_id': 'http://cltl.nl/leolani/n2mu/own',
+                                                                        '_label': 'own', '_offset': None,
+                                                                        '_confidence': 0.0, '_cardinality': 1},
+                                                                     '_entity': {'_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                                 '_label': '', '_offset': None,
+                                                                                 '_confidence': 0.0,
+                                                                                 '_types': ['object']}},
+                                                                    {'_known_entity': {
+                                                                        '_id': 'http://cltl.nl/leolani/world/',
+                                                                        '_label': 'None', '_offset': None,
+                                                                        '_confidence': 0.0,
+                                                                        '_types': ['11z-11-eicosenyl-oleate',
+                                                                                   'Instance']}, '_predicate': {
+                                                                        '_id': 'http://cltl.nl/leolani/n2mu/read',
+                                                                        '_label': 'read', '_offset': None,
+                                                                        '_confidence': 0.0, '_cardinality': 1},
+                                                                     '_entity': {'_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                                 '_label': '', '_offset': None,
+                                                                                 '_confidence': 0.0,
+                                                                                 '_types': ['book']}},
+                                                                    {'_known_entity': {
+                                                                        '_id': 'http://cltl.nl/leolani/world/',
+                                                                        '_label': 'None', '_offset': None,
+                                                                        '_confidence': 0.0,
+                                                                        '_types': ['11z-11-eicosenyl-oleate',
+                                                                                   'Instance']}, '_predicate': {
+                                                                        '_id': 'http://cltl.nl/leolani/n2mu/study-at',
+                                                                        '_label': 'study-at', '_offset': None,
+                                                                        '_confidence': 0.0, '_cardinality': 1},
+                                                                     '_entity': {'_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                                 '_label': '', '_offset': None,
+                                                                                 '_confidence': 0.0,
+                                                                                 '_types': ['institution']}},
+                                                                    {'_known_entity': {
+                                                                        '_id': 'http://cltl.nl/leolani/world/',
+                                                                        '_label': 'None', '_offset': None,
+                                                                        '_confidence': 0.0,
+                                                                        '_types': ['11z-11-eicosenyl-oleate',
+                                                                                   'Instance']}, '_predicate': {
+                                                                        '_id': 'http://cltl.nl/leolani/n2mu/be-member-of',
+                                                                        '_label': 'be-member-of', '_offset': None,
+                                                                        '_confidence': 0.0, '_cardinality': 1},
+                                                                     '_entity': {'_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                                 '_label': '', '_offset': None,
+                                                                                 '_confidence': 0.0,
+                                                                                 '_types': ['institution']}},
+                                                                    {'_known_entity': {
+                                                                        '_id': 'http://cltl.nl/leolani/world/',
+                                                                        '_label': 'None', '_offset': None,
+                                                                        '_confidence': 0.0,
+                                                                        '_types': ['11z-11-eicosenyl-oleate',
+                                                                                   'Instance']}, '_predicate': {
+                                                                        '_id': 'http://cltl.nl/leolani/n2mu/travel-to',
+                                                                        '_label': 'travel-to', '_offset': None,
+                                                                        '_confidence': 0.0, '_cardinality': 1},
+                                                                     '_entity': {'_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                                 '_label': '', '_offset': None,
+                                                                                 '_confidence': 0.0,
+                                                                                 '_types': ['location']}},
+                                                                    {'_known_entity': {
+                                                                        '_id': 'http://cltl.nl/leolani/world/',
+                                                                        '_label': 'None', '_offset': None,
+                                                                        '_confidence': 0.0,
+                                                                        '_types': ['11z-11-eicosenyl-oleate',
+                                                                                   'Instance']}, '_predicate': {
+                                                                        '_id': 'http://cltl.nl/leolani/n2mu/visit',
+                                                                        '_label': 'visit', '_offset': None,
+                                                                        '_confidence': 0.0, '_cardinality': 1},
+                                                                     '_entity': {'_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                                 '_label': '', '_offset': None,
+                                                                                 '_confidence': 0.0,
+                                                                                 '_types': ['agent']}},
+                                                                    {'_known_entity': {
+                                                                        '_id': 'http://cltl.nl/leolani/world/',
+                                                                        '_label': 'None', '_offset': None,
+                                                                        '_confidence': 0.0,
+                                                                        '_types': ['11z-11-eicosenyl-oleate',
+                                                                                   'Instance']}, '_predicate': {
+                                                                        '_id': 'http://cltl.nl/leolani/n2mu/watch',
+                                                                        '_label': 'watch', '_offset': None,
+                                                                        '_confidence': 0.0, '_cardinality': 1},
+                                                                     '_entity': {'_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                                 '_label': '', '_offset': None,
+                                                                                 '_confidence': 0.0,
+                                                                                 '_types': ['movie']}},
+                                                                    {'_known_entity': {
+                                                                        '_id': 'http://cltl.nl/leolani/world/',
+                                                                        '_label': 'None', '_offset': None,
+                                                                        '_confidence': 0.0,
+                                                                        '_types': ['11z-11-eicosenyl-oleate',
+                                                                                   'Instance']}, '_predicate': {
+                                                                        '_id': 'http://cltl.nl/leolani/n2mu/work-as',
+                                                                        '_label': 'work-as', '_offset': None,
+                                                                        '_confidence': 0.0, '_cardinality': 1},
+                                                                     '_entity': {'_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                                 '_label': '', '_offset': None,
+                                                                                 '_confidence': 0.0,
+                                                                                 '_types': ['profession']}},
+                                                                    {'_known_entity': {
+                                                                        '_id': 'http://cltl.nl/leolani/world/',
+                                                                        '_label': 'None', '_offset': None,
+                                                                        '_confidence': 0.0,
+                                                                        '_types': ['11z-11-eicosenyl-oleate',
+                                                                                   'Instance']}, '_predicate': {
+                                                                        '_id': 'http://cltl.nl/leolani/n2mu/work-at',
+                                                                        '_label': 'work-at', '_offset': None,
+                                                                        '_confidence': 0.0, '_cardinality': 1},
+                                                                     '_entity': {'_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                                 '_label': '', '_offset': None,
+                                                                                 '_confidence': 0.0,
+                                                                                 '_types': ['institution']}},
+                                                                    {'_known_entity': {
+                                                                        '_id': 'http://cltl.nl/leolani/world/',
+                                                                        '_label': 'None', '_offset': None,
+                                                                        '_confidence': 0.0,
+                                                                        '_types': ['11z-11-eicosenyl-oleate',
+                                                                                   'Instance']}, '_predicate': {
+                                                                        '_id': 'http://cltl.nl/leolani/n2mu/sport',
+                                                                        '_label': 'sport', '_offset': None,
+                                                                        '_confidence': 0.0, '_cardinality': 1},
+                                                                     '_entity': {'_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                                 '_label': '', '_offset': None,
+                                                                                 '_confidence': 0.0,
+                                                                                 '_types': ['sport']}}],
+                                                       '_complement': [{'_known_entity': {
+                                                           '_id': 'http://cltl.nl/leolani/world/', '_label': 'None',
+                                                           '_offset': None, '_confidence': 0.0,
+                                                           '_types': ['11z-11-eicosenyl-oleate', 'Instance']},
+                                                                        '_predicate': {
+                                                                            '_id': 'http://cltl.nl/leolani/n2mu/be-brother-of',
+                                                                            '_label': 'be-brother-of', '_offset': None,
+                                                                            '_confidence': 0.0, '_cardinality': 1},
+                                                                        '_entity': {
+                                                                            '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                            '_label': '', '_offset': None,
+                                                                            '_confidence': 0.0, '_types': ['person']}},
+                                                                       {'_known_entity': {
+                                                                           '_id': 'http://cltl.nl/leolani/world/',
+                                                                           '_label': 'None', '_offset': None,
+                                                                           '_confidence': 0.0,
+                                                                           '_types': ['11z-11-eicosenyl-oleate',
+                                                                                      'Instance']}, '_predicate': {
+                                                                           '_id': 'http://cltl.nl/leolani/n2mu/be-sibling-of',
+                                                                           '_label': 'be-sibling-of', '_offset': None,
+                                                                           '_confidence': 0.0, '_cardinality': 1},
+                                                                        '_entity': {
+                                                                            '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                            '_label': '', '_offset': None,
+                                                                            '_confidence': 0.0, '_types': ['person']}},
+                                                                       {'_known_entity': {
+                                                                           '_id': 'http://cltl.nl/leolani/world/',
+                                                                           '_label': 'None', '_offset': None,
+                                                                           '_confidence': 0.0,
+                                                                           '_types': ['11z-11-eicosenyl-oleate',
+                                                                                      'Instance']}, '_predicate': {
+                                                                           '_id': 'http://cltl.nl/leolani/n2mu/be-daughter-of',
+                                                                           '_label': 'be-daughter-of', '_offset': None,
+                                                                           '_confidence': 0.0, '_cardinality': 1},
+                                                                        '_entity': {
+                                                                            '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                            '_label': '', '_offset': None,
+                                                                            '_confidence': 0.0, '_types': ['person']}},
+                                                                       {'_known_entity': {
+                                                                           '_id': 'http://cltl.nl/leolani/world/',
+                                                                           '_label': 'None', '_offset': None,
+                                                                           '_confidence': 0.0,
+                                                                           '_types': ['11z-11-eicosenyl-oleate',
+                                                                                      'Instance']}, '_predicate': {
+                                                                           '_id': 'http://cltl.nl/leolani/n2mu/be-child-of',
+                                                                           '_label': 'be-child-of', '_offset': None,
+                                                                           '_confidence': 0.0, '_cardinality': 1},
+                                                                        '_entity': {
+                                                                            '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                            '_label': '', '_offset': None,
+                                                                            '_confidence': 0.0, '_types': ['person']}},
+                                                                       {'_known_entity': {
+                                                                           '_id': 'http://cltl.nl/leolani/world/',
+                                                                           '_label': 'None', '_offset': None,
+                                                                           '_confidence': 0.0,
+                                                                           '_types': ['11z-11-eicosenyl-oleate',
+                                                                                      'Instance']}, '_predicate': {
+                                                                           '_id': 'http://cltl.nl/leolani/n2mu/be-son-of',
+                                                                           '_label': 'be-son-of', '_offset': None,
+                                                                           '_confidence': 0.0, '_cardinality': 1},
+                                                                        '_entity': {
+                                                                            '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                            '_label': '', '_offset': None,
+                                                                            '_confidence': 0.0, '_types': ['person']}},
+                                                                       {'_known_entity': {
+                                                                           '_id': 'http://cltl.nl/leolani/world/',
+                                                                           '_label': 'None', '_offset': None,
+                                                                           '_confidence': 0.0,
+                                                                           '_types': ['11z-11-eicosenyl-oleate',
+                                                                                      'Instance']}, '_predicate': {
+                                                                           '_id': 'http://cltl.nl/leolani/n2mu/be-father-of',
+                                                                           '_label': 'be-father-of', '_offset': None,
+                                                                           '_confidence': 0.0, '_cardinality': 1},
+                                                                        '_entity': {
+                                                                            '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                            '_label': '', '_offset': None,
+                                                                            '_confidence': 0.0, '_types': ['person']}},
+                                                                       {'_known_entity': {
+                                                                           '_id': 'http://cltl.nl/leolani/world/',
+                                                                           '_label': 'None', '_offset': None,
+                                                                           '_confidence': 0.0,
+                                                                           '_types': ['11z-11-eicosenyl-oleate',
+                                                                                      'Instance']}, '_predicate': {
+                                                                           '_id': 'http://cltl.nl/leolani/n2mu/be-parent-of',
+                                                                           '_label': 'be-parent-of', '_offset': None,
+                                                                           '_confidence': 0.0, '_cardinality': 1},
+                                                                        '_entity': {
+                                                                            '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                            '_label': '', '_offset': None,
+                                                                            '_confidence': 0.0, '_types': ['person']}},
+                                                                       {'_known_entity': {
+                                                                           '_id': 'http://cltl.nl/leolani/world/',
+                                                                           '_label': 'None', '_offset': None,
+                                                                           '_confidence': 0.0,
+                                                                           '_types': ['11z-11-eicosenyl-oleate',
+                                                                                      'Instance']}, '_predicate': {
+                                                                           '_id': 'http://cltl.nl/leolani/n2mu/be-mother-of',
+                                                                           '_label': 'be-mother-of', '_offset': None,
+                                                                           '_confidence': 0.0, '_cardinality': 1},
+                                                                        '_entity': {
+                                                                            '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                            '_label': '', '_offset': None,
+                                                                            '_confidence': 0.0, '_types': ['person']}},
+                                                                       {'_known_entity': {
+                                                                           '_id': 'http://cltl.nl/leolani/world/',
+                                                                           '_label': 'None', '_offset': None,
+                                                                           '_confidence': 0.0,
+                                                                           '_types': ['11z-11-eicosenyl-oleate',
+                                                                                      'Instance']}, '_predicate': {
+                                                                           '_id': 'http://cltl.nl/leolani/n2mu/be-grandfather-of',
+                                                                           '_label': 'be-grandfather-of',
+                                                                           '_offset': None, '_confidence': 0.0,
+                                                                           '_cardinality': 1}, '_entity': {
+                                                                           '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                           '_label': '', '_offset': None,
+                                                                           '_confidence': 0.0, '_types': ['person']}},
+                                                                       {'_known_entity': {
+                                                                           '_id': 'http://cltl.nl/leolani/world/',
+                                                                           '_label': 'None', '_offset': None,
+                                                                           '_confidence': 0.0,
+                                                                           '_types': ['11z-11-eicosenyl-oleate',
+                                                                                      'Instance']}, '_predicate': {
+                                                                           '_id': 'http://cltl.nl/leolani/n2mu/be-grandparent-of',
+                                                                           '_label': 'be-grandparent-of',
+                                                                           '_offset': None, '_confidence': 0.0,
+                                                                           '_cardinality': 1}, '_entity': {
+                                                                           '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                           '_label': '', '_offset': None,
+                                                                           '_confidence': 0.0, '_types': ['person']}},
+                                                                       {'_known_entity': {
+                                                                           '_id': 'http://cltl.nl/leolani/world/',
+                                                                           '_label': 'None', '_offset': None,
+                                                                           '_confidence': 0.0,
+                                                                           '_types': ['11z-11-eicosenyl-oleate',
+                                                                                      'Instance']}, '_predicate': {
+                                                                           '_id': 'http://cltl.nl/leolani/n2mu/be-grandmother-of',
+                                                                           '_label': 'be-grandmother-of',
+                                                                           '_offset': None, '_confidence': 0.0,
+                                                                           '_cardinality': 1}, '_entity': {
+                                                                           '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                           '_label': '', '_offset': None,
+                                                                           '_confidence': 0.0, '_types': ['person']}},
+                                                                       {'_known_entity': {
+                                                                           '_id': 'http://cltl.nl/leolani/world/',
+                                                                           '_label': 'None', '_offset': None,
+                                                                           '_confidence': 0.0,
+                                                                           '_types': ['11z-11-eicosenyl-oleate',
+                                                                                      'Instance']}, '_predicate': {
+                                                                           '_id': 'http://cltl.nl/leolani/n2mu/be-husband-of',
+                                                                           '_label': 'be-husband-of', '_offset': None,
+                                                                           '_confidence': 0.0, '_cardinality': 1},
+                                                                        '_entity': {
+                                                                            '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                            '_label': '', '_offset': None,
+                                                                            '_confidence': 0.0, '_types': ['person']}},
+                                                                       {'_known_entity': {
+                                                                           '_id': 'http://cltl.nl/leolani/world/',
+                                                                           '_label': 'None', '_offset': None,
+                                                                           '_confidence': 0.0,
+                                                                           '_types': ['11z-11-eicosenyl-oleate',
+                                                                                      'Instance']}, '_predicate': {
+                                                                           '_id': 'http://cltl.nl/leolani/n2mu/be-spouse-of',
+                                                                           '_label': 'be-spouse-of', '_offset': None,
+                                                                           '_confidence': 0.0, '_cardinality': 1},
+                                                                        '_entity': {
+                                                                            '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                            '_label': '', '_offset': None,
+                                                                            '_confidence': 0.0, '_types': ['person']}},
+                                                                       {'_known_entity': {
+                                                                           '_id': 'http://cltl.nl/leolani/world/',
+                                                                           '_label': 'None', '_offset': None,
+                                                                           '_confidence': 0.0,
+                                                                           '_types': ['11z-11-eicosenyl-oleate',
+                                                                                      'Instance']}, '_predicate': {
+                                                                           '_id': 'http://cltl.nl/leolani/n2mu/be-wife-of',
+                                                                           '_label': 'be-wife-of', '_offset': None,
+                                                                           '_confidence': 0.0, '_cardinality': 1},
+                                                                        '_entity': {
+                                                                            '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                            '_label': '', '_offset': None,
+                                                                            '_confidence': 0.0, '_types': ['person']}},
+                                                                       {'_known_entity': {
+                                                                           '_id': 'http://cltl.nl/leolani/world/',
+                                                                           '_label': 'None', '_offset': None,
+                                                                           '_confidence': 0.0,
+                                                                           '_types': ['11z-11-eicosenyl-oleate',
+                                                                                      'Instance']}, '_predicate': {
+                                                                           '_id': 'http://cltl.nl/leolani/n2mu/be-partner-of',
+                                                                           '_label': 'be-partner-of', '_offset': None,
+                                                                           '_confidence': 0.0, '_cardinality': 1},
+                                                                        '_entity': {
+                                                                            '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                            '_label': '', '_offset': None,
+                                                                            '_confidence': 0.0, '_types': ['person']}},
+                                                                       {'_known_entity': {
+                                                                           '_id': 'http://cltl.nl/leolani/world/',
+                                                                           '_label': 'None', '_offset': None,
+                                                                           '_confidence': 0.0,
+                                                                           '_types': ['11z-11-eicosenyl-oleate',
+                                                                                      'Instance']}, '_predicate': {
+                                                                           '_id': 'http://cltl.nl/leolani/n2mu/be-sister-of',
+                                                                           '_label': 'be-sister-of', '_offset': None,
+                                                                           '_confidence': 0.0, '_cardinality': 1},
+                                                                        '_entity': {
+                                                                            '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                            '_label': '', '_offset': None,
+                                                                            '_confidence': 0.0, '_types': ['person']}},
+                                                                       {'_known_entity': {
+                                                                           '_id': 'http://cltl.nl/leolani/world/',
+                                                                           '_label': 'None', '_offset': None,
+                                                                           '_confidence': 0.0,
+                                                                           '_types': ['11z-11-eicosenyl-oleate',
+                                                                                      'Instance']}, '_predicate': {
+                                                                           '_id': 'http://cltl.nl/leolani/n2mu/be-descendant-of',
+                                                                           '_label': 'be-descendant-of',
+                                                                           '_offset': None, '_confidence': 0.0,
+                                                                           '_cardinality': 1}, '_entity': {
+                                                                           '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                           '_label': '', '_offset': None,
+                                                                           '_confidence': 0.0, '_types': ['person']}},
+                                                                       {'_known_entity': {
+                                                                           '_id': 'http://cltl.nl/leolani/world/',
+                                                                           '_label': 'None', '_offset': None,
+                                                                           '_confidence': 0.0,
+                                                                           '_types': ['11z-11-eicosenyl-oleate',
+                                                                                      'Instance']}, '_predicate': {
+                                                                           '_id': 'http://cltl.nl/leolani/n2mu/be-family-of',
+                                                                           '_label': 'be-family-of', '_offset': None,
+                                                                           '_confidence': 0.0, '_cardinality': 1},
+                                                                        '_entity': {
+                                                                            '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                            '_label': '', '_offset': None,
+                                                                            '_confidence': 0.0, '_types': ['person']}},
+                                                                       {'_known_entity': {
+                                                                           '_id': 'http://cltl.nl/leolani/world/',
+                                                                           '_label': 'None', '_offset': None,
+                                                                           '_confidence': 0.0,
+                                                                           '_types': ['11z-11-eicosenyl-oleate',
+                                                                                      'Instance']}, '_predicate': {
+                                                                           '_id': 'http://cltl.nl/leolani/n2mu/be-ancestor-of',
+                                                                           '_label': 'be-ancestor-of', '_offset': None,
+                                                                           '_confidence': 0.0, '_cardinality': 1},
+                                                                        '_entity': {
+                                                                            '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                            '_label': '', '_offset': None,
+                                                                            '_confidence': 0.0, '_types': ['person']}},
+                                                                       {'_known_entity': {
+                                                                           '_id': 'http://cltl.nl/leolani/world/',
+                                                                           '_label': 'None', '_offset': None,
+                                                                           '_confidence': 0.0,
+                                                                           '_types': ['11z-11-eicosenyl-oleate',
+                                                                                      'Instance']}, '_predicate': {
+                                                                           '_id': 'http://cltl.nl/leolani/n2mu/be-colleague-of',
+                                                                           '_label': 'be-colleague-of', '_offset': None,
+                                                                           '_confidence': 0.0, '_cardinality': 1},
+                                                                        '_entity': {
+                                                                            '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                            '_label': '', '_offset': None,
+                                                                            '_confidence': 0.0, '_types': ['agent']}},
+                                                                       {'_known_entity': {
+                                                                           '_id': 'http://cltl.nl/leolani/world/',
+                                                                           '_label': 'None', '_offset': None,
+                                                                           '_confidence': 0.0,
+                                                                           '_types': ['11z-11-eicosenyl-oleate',
+                                                                                      'Instance']}, '_predicate': {
+                                                                           '_id': 'http://cltl.nl/leolani/n2mu/know',
+                                                                           '_label': 'know', '_offset': None,
+                                                                           '_confidence': 0.0, '_cardinality': 1},
+                                                                        '_entity': {
+                                                                            '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                            '_label': '', '_offset': None,
+                                                                            '_confidence': 0.0, '_types': ['agent']}},
+                                                                       {'_known_entity': {
+                                                                           '_id': 'http://cltl.nl/leolani/world/',
+                                                                           '_label': 'None', '_offset': None,
+                                                                           '_confidence': 0.0,
+                                                                           '_types': ['11z-11-eicosenyl-oleate',
+                                                                                      'Instance']}, '_predicate': {
+                                                                           '_id': 'http://cltl.nl/leolani/n2mu/be-friends-with',
+                                                                           '_label': 'be-friends-with', '_offset': None,
+                                                                           '_confidence': 0.0, '_cardinality': 1},
+                                                                        '_entity': {
+                                                                            '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                            '_label': '', '_offset': None,
+                                                                            '_confidence': 0.0, '_types': ['agent']}},
+                                                                       {'_known_entity': {
+                                                                           '_id': 'http://cltl.nl/leolani/world/',
+                                                                           '_label': 'None', '_offset': None,
+                                                                           '_confidence': 0.0,
+                                                                           '_types': ['11z-11-eicosenyl-oleate',
+                                                                                      'Instance']}, '_predicate': {
+                                                                           '_id': 'http://cltl.nl/leolani/n2mu/love',
+                                                                           '_label': 'love', '_offset': None,
+                                                                           '_confidence': 0.0, '_cardinality': 1},
+                                                                        '_entity': {
+                                                                            '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                            '_label': '', '_offset': None,
+                                                                            '_confidence': 0.0, '_types': ['agent']}},
+                                                                       {'_known_entity': {
+                                                                           '_id': 'http://cltl.nl/leolani/world/',
+                                                                           '_label': 'None', '_offset': None,
+                                                                           '_confidence': 0.0,
+                                                                           '_types': ['11z-11-eicosenyl-oleate',
+                                                                                      'Instance']}, '_predicate': {
+                                                                           '_id': 'http://cltl.nl/leolani/n2mu/like',
+                                                                           '_label': 'like', '_offset': None,
+                                                                           '_confidence': 0.0, '_cardinality': 1},
+                                                                        '_entity': {
+                                                                            '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                            '_label': '', '_offset': None,
+                                                                            '_confidence': 0.0, '_types': ['agent']}},
+                                                                       {'_known_entity': {
+                                                                           '_id': 'http://cltl.nl/leolani/world/',
+                                                                           '_label': 'None', '_offset': None,
+                                                                           '_confidence': 0.0,
+                                                                           '_types': ['11z-11-eicosenyl-oleate',
+                                                                                      'Instance']}, '_predicate': {
+                                                                           '_id': 'http://cltl.nl/leolani/n2mu/visit',
+                                                                           '_label': 'visit', '_offset': None,
+                                                                           '_confidence': 0.0, '_cardinality': 1},
+                                                                        '_entity': {
+                                                                            '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                            '_label': '', '_offset': None,
+                                                                            '_confidence': 0.0, '_types': ['agent']}}]},
+                                     '_complement_gaps': {'_subject': [{'_known_entity': {
+                                         '_id': 'http://cltl.nl/leolani/world/', '_label': 'None', '_offset': None,
+                                         '_confidence': 0.0, '_types': ['11z-11-eicosenyl-oleate', 'Instance']},
+                                                                        '_predicate': {
+                                                                            '_id': 'http://cltl.nl/leolani/n2mu/be-brother-of',
+                                                                            '_label': 'be-brother-of', '_offset': None,
+                                                                            '_confidence': 0.0, '_cardinality': 1},
+                                                                        '_entity': {
+                                                                            '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                            '_label': '', '_offset': None,
+                                                                            '_confidence': 0.0, '_types': ['person']}},
+                                                                       {'_known_entity': {
+                                                                           '_id': 'http://cltl.nl/leolani/world/',
+                                                                           '_label': 'None', '_offset': None,
+                                                                           '_confidence': 0.0,
+                                                                           '_types': ['11z-11-eicosenyl-oleate',
+                                                                                      'Instance']}, '_predicate': {
+                                                                           '_id': 'http://cltl.nl/leolani/n2mu/be-sibling-of',
+                                                                           '_label': 'be-sibling-of', '_offset': None,
+                                                                           '_confidence': 0.0, '_cardinality': 1},
+                                                                        '_entity': {
+                                                                            '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                            '_label': '', '_offset': None,
+                                                                            '_confidence': 0.0, '_types': ['person']}},
+                                                                       {'_known_entity': {
+                                                                           '_id': 'http://cltl.nl/leolani/world/',
+                                                                           '_label': 'None', '_offset': None,
+                                                                           '_confidence': 0.0,
+                                                                           '_types': ['11z-11-eicosenyl-oleate',
+                                                                                      'Instance']}, '_predicate': {
+                                                                           '_id': 'http://cltl.nl/leolani/n2mu/be-daughter-of',
+                                                                           '_label': 'be-daughter-of', '_offset': None,
+                                                                           '_confidence': 0.0, '_cardinality': 1},
+                                                                        '_entity': {
+                                                                            '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                            '_label': '', '_offset': None,
+                                                                            '_confidence': 0.0, '_types': ['person']}},
+                                                                       {'_known_entity': {
+                                                                           '_id': 'http://cltl.nl/leolani/world/',
+                                                                           '_label': 'None', '_offset': None,
+                                                                           '_confidence': 0.0,
+                                                                           '_types': ['11z-11-eicosenyl-oleate',
+                                                                                      'Instance']}, '_predicate': {
+                                                                           '_id': 'http://cltl.nl/leolani/n2mu/be-child-of',
+                                                                           '_label': 'be-child-of', '_offset': None,
+                                                                           '_confidence': 0.0, '_cardinality': 1},
+                                                                        '_entity': {
+                                                                            '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                            '_label': '', '_offset': None,
+                                                                            '_confidence': 0.0, '_types': ['person']}},
+                                                                       {'_known_entity': {
+                                                                           '_id': 'http://cltl.nl/leolani/world/',
+                                                                           '_label': 'None', '_offset': None,
+                                                                           '_confidence': 0.0,
+                                                                           '_types': ['11z-11-eicosenyl-oleate',
+                                                                                      'Instance']}, '_predicate': {
+                                                                           '_id': 'http://cltl.nl/leolani/n2mu/be-son-of',
+                                                                           '_label': 'be-son-of', '_offset': None,
+                                                                           '_confidence': 0.0, '_cardinality': 1},
+                                                                        '_entity': {
+                                                                            '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                            '_label': '', '_offset': None,
+                                                                            '_confidence': 0.0, '_types': ['person']}},
+                                                                       {'_known_entity': {
+                                                                           '_id': 'http://cltl.nl/leolani/world/',
+                                                                           '_label': 'None', '_offset': None,
+                                                                           '_confidence': 0.0,
+                                                                           '_types': ['11z-11-eicosenyl-oleate',
+                                                                                      'Instance']}, '_predicate': {
+                                                                           '_id': 'http://cltl.nl/leolani/n2mu/be-father-of',
+                                                                           '_label': 'be-father-of', '_offset': None,
+                                                                           '_confidence': 0.0, '_cardinality': 1},
+                                                                        '_entity': {
+                                                                            '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                            '_label': '', '_offset': None,
+                                                                            '_confidence': 0.0, '_types': ['person']}},
+                                                                       {'_known_entity': {
+                                                                           '_id': 'http://cltl.nl/leolani/world/',
+                                                                           '_label': 'None', '_offset': None,
+                                                                           '_confidence': 0.0,
+                                                                           '_types': ['11z-11-eicosenyl-oleate',
+                                                                                      'Instance']}, '_predicate': {
+                                                                           '_id': 'http://cltl.nl/leolani/n2mu/be-parent-of',
+                                                                           '_label': 'be-parent-of', '_offset': None,
+                                                                           '_confidence': 0.0, '_cardinality': 1},
+                                                                        '_entity': {
+                                                                            '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                            '_label': '', '_offset': None,
+                                                                            '_confidence': 0.0, '_types': ['person']}},
+                                                                       {'_known_entity': {
+                                                                           '_id': 'http://cltl.nl/leolani/world/',
+                                                                           '_label': 'None', '_offset': None,
+                                                                           '_confidence': 0.0,
+                                                                           '_types': ['11z-11-eicosenyl-oleate',
+                                                                                      'Instance']}, '_predicate': {
+                                                                           '_id': 'http://cltl.nl/leolani/n2mu/be-mother-of',
+                                                                           '_label': 'be-mother-of', '_offset': None,
+                                                                           '_confidence': 0.0, '_cardinality': 1},
+                                                                        '_entity': {
+                                                                            '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                            '_label': '', '_offset': None,
+                                                                            '_confidence': 0.0, '_types': ['person']}},
+                                                                       {'_known_entity': {
+                                                                           '_id': 'http://cltl.nl/leolani/world/',
+                                                                           '_label': 'None', '_offset': None,
+                                                                           '_confidence': 0.0,
+                                                                           '_types': ['11z-11-eicosenyl-oleate',
+                                                                                      'Instance']}, '_predicate': {
+                                                                           '_id': 'http://cltl.nl/leolani/n2mu/be-grandfather-of',
+                                                                           '_label': 'be-grandfather-of',
+                                                                           '_offset': None, '_confidence': 0.0,
+                                                                           '_cardinality': 1}, '_entity': {
+                                                                           '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                           '_label': '', '_offset': None,
+                                                                           '_confidence': 0.0, '_types': ['person']}},
+                                                                       {'_known_entity': {
+                                                                           '_id': 'http://cltl.nl/leolani/world/',
+                                                                           '_label': 'None', '_offset': None,
+                                                                           '_confidence': 0.0,
+                                                                           '_types': ['11z-11-eicosenyl-oleate',
+                                                                                      'Instance']}, '_predicate': {
+                                                                           '_id': 'http://cltl.nl/leolani/n2mu/be-grandparent-of',
+                                                                           '_label': 'be-grandparent-of',
+                                                                           '_offset': None, '_confidence': 0.0,
+                                                                           '_cardinality': 1}, '_entity': {
+                                                                           '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                           '_label': '', '_offset': None,
+                                                                           '_confidence': 0.0, '_types': ['person']}},
+                                                                       {'_known_entity': {
+                                                                           '_id': 'http://cltl.nl/leolani/world/',
+                                                                           '_label': 'None', '_offset': None,
+                                                                           '_confidence': 0.0,
+                                                                           '_types': ['11z-11-eicosenyl-oleate',
+                                                                                      'Instance']}, '_predicate': {
+                                                                           '_id': 'http://cltl.nl/leolani/n2mu/be-grandmother-of',
+                                                                           '_label': 'be-grandmother-of',
+                                                                           '_offset': None, '_confidence': 0.0,
+                                                                           '_cardinality': 1}, '_entity': {
+                                                                           '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                           '_label': '', '_offset': None,
+                                                                           '_confidence': 0.0, '_types': ['person']}},
+                                                                       {'_known_entity': {
+                                                                           '_id': 'http://cltl.nl/leolani/world/',
+                                                                           '_label': 'None', '_offset': None,
+                                                                           '_confidence': 0.0,
+                                                                           '_types': ['11z-11-eicosenyl-oleate',
+                                                                                      'Instance']}, '_predicate': {
+                                                                           '_id': 'http://cltl.nl/leolani/n2mu/be-husband-of',
+                                                                           '_label': 'be-husband-of', '_offset': None,
+                                                                           '_confidence': 0.0, '_cardinality': 1},
+                                                                        '_entity': {
+                                                                            '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                            '_label': '', '_offset': None,
+                                                                            '_confidence': 0.0, '_types': ['person']}},
+                                                                       {'_known_entity': {
+                                                                           '_id': 'http://cltl.nl/leolani/world/',
+                                                                           '_label': 'None', '_offset': None,
+                                                                           '_confidence': 0.0,
+                                                                           '_types': ['11z-11-eicosenyl-oleate',
+                                                                                      'Instance']}, '_predicate': {
+                                                                           '_id': 'http://cltl.nl/leolani/n2mu/be-spouse-of',
+                                                                           '_label': 'be-spouse-of', '_offset': None,
+                                                                           '_confidence': 0.0, '_cardinality': 1},
+                                                                        '_entity': {
+                                                                            '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                            '_label': '', '_offset': None,
+                                                                            '_confidence': 0.0, '_types': ['person']}},
+                                                                       {'_known_entity': {
+                                                                           '_id': 'http://cltl.nl/leolani/world/',
+                                                                           '_label': 'None', '_offset': None,
+                                                                           '_confidence': 0.0,
+                                                                           '_types': ['11z-11-eicosenyl-oleate',
+                                                                                      'Instance']}, '_predicate': {
+                                                                           '_id': 'http://cltl.nl/leolani/n2mu/be-wife-of',
+                                                                           '_label': 'be-wife-of', '_offset': None,
+                                                                           '_confidence': 0.0, '_cardinality': 1},
+                                                                        '_entity': {
+                                                                            '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                            '_label': '', '_offset': None,
+                                                                            '_confidence': 0.0, '_types': ['person']}},
+                                                                       {'_known_entity': {
+                                                                           '_id': 'http://cltl.nl/leolani/world/',
+                                                                           '_label': 'None', '_offset': None,
+                                                                           '_confidence': 0.0,
+                                                                           '_types': ['11z-11-eicosenyl-oleate',
+                                                                                      'Instance']}, '_predicate': {
+                                                                           '_id': 'http://cltl.nl/leolani/n2mu/be-partner-of',
+                                                                           '_label': 'be-partner-of', '_offset': None,
+                                                                           '_confidence': 0.0, '_cardinality': 1},
+                                                                        '_entity': {
+                                                                            '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                            '_label': '', '_offset': None,
+                                                                            '_confidence': 0.0, '_types': ['person']}},
+                                                                       {'_known_entity': {
+                                                                           '_id': 'http://cltl.nl/leolani/world/',
+                                                                           '_label': 'None', '_offset': None,
+                                                                           '_confidence': 0.0,
+                                                                           '_types': ['11z-11-eicosenyl-oleate',
+                                                                                      'Instance']}, '_predicate': {
+                                                                           '_id': 'http://cltl.nl/leolani/n2mu/be-sister-of',
+                                                                           '_label': 'be-sister-of', '_offset': None,
+                                                                           '_confidence': 0.0, '_cardinality': 1},
+                                                                        '_entity': {
+                                                                            '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                            '_label': '', '_offset': None,
+                                                                            '_confidence': 0.0, '_types': ['person']}},
+                                                                       {'_known_entity': {
+                                                                           '_id': 'http://cltl.nl/leolani/world/',
+                                                                           '_label': 'None', '_offset': None,
+                                                                           '_confidence': 0.0,
+                                                                           '_types': ['11z-11-eicosenyl-oleate',
+                                                                                      'Instance']}, '_predicate': {
+                                                                           '_id': 'http://cltl.nl/leolani/n2mu/born-in',
+                                                                           '_label': 'born-in', '_offset': None,
+                                                                           '_confidence': 0.0, '_cardinality': 1},
+                                                                        '_entity': {
+                                                                            '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                            '_label': '', '_offset': None,
+                                                                            '_confidence': 0.0,
+                                                                            '_types': ['location']}},
+                                                                       {'_known_entity': {
+                                                                           '_id': 'http://cltl.nl/leolani/world/',
+                                                                           '_label': 'None', '_offset': None,
+                                                                           '_confidence': 0.0,
+                                                                           '_types': ['11z-11-eicosenyl-oleate',
+                                                                                      'Instance']}, '_predicate': {
+                                                                           '_id': 'http://cltl.nl/leolani/n2mu/cook',
+                                                                           '_label': 'cook', '_offset': None,
+                                                                           '_confidence': 0.0, '_cardinality': 1},
+                                                                        '_entity': {
+                                                                            '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                            '_label': '', '_offset': None,
+                                                                            '_confidence': 0.0, '_types': ['food']}},
+                                                                       {'_known_entity': {
+                                                                           '_id': 'http://cltl.nl/leolani/world/',
+                                                                           '_label': 'None', '_offset': None,
+                                                                           '_confidence': 0.0,
+                                                                           '_types': ['11z-11-eicosenyl-oleate',
+                                                                                      'Instance']}, '_predicate': {
+                                                                           '_id': 'http://cltl.nl/leolani/n2mu/create',
+                                                                           '_label': 'create', '_offset': None,
+                                                                           '_confidence': 0.0, '_cardinality': 1},
+                                                                        '_entity': {
+                                                                            '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                            '_label': '', '_offset': None,
+                                                                            '_confidence': 0.0,
+                                                                            '_types': ['artifact', 'object']}},
+                                                                       {'_known_entity': {
+                                                                           '_id': 'http://cltl.nl/leolani/world/',
+                                                                           '_label': 'None', '_offset': None,
+                                                                           '_confidence': 0.0,
+                                                                           '_types': ['11z-11-eicosenyl-oleate',
+                                                                                      'Instance']}, '_predicate': {
+                                                                           '_id': 'http://cltl.nl/leolani/n2mu/eat',
+                                                                           '_label': 'eat', '_offset': None,
+                                                                           '_confidence': 0.0, '_cardinality': 1},
+                                                                        '_entity': {
+                                                                            '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                            '_label': '', '_offset': None,
+                                                                            '_confidence': 0.0, '_types': ['food']}},
+                                                                       {'_known_entity': {
+                                                                           '_id': 'http://cltl.nl/leolani/world/',
+                                                                           '_label': 'None', '_offset': None,
+                                                                           '_confidence': 0.0,
+                                                                           '_types': ['11z-11-eicosenyl-oleate',
+                                                                                      'Instance']}, '_predicate': {
+                                                                           '_id': 'http://cltl.nl/leolani/n2mu/have-breakfast',
+                                                                           '_label': 'have-breakfast', '_offset': None,
+                                                                           '_confidence': 0.0, '_cardinality': 1},
+                                                                        '_entity': {
+                                                                            '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                            '_label': '', '_offset': None,
+                                                                            '_confidence': 0.0, '_types': ['food']}},
+                                                                       {'_known_entity': {
+                                                                           '_id': 'http://cltl.nl/leolani/world/',
+                                                                           '_label': 'None', '_offset': None,
+                                                                           '_confidence': 0.0,
+                                                                           '_types': ['11z-11-eicosenyl-oleate',
+                                                                                      'Instance']}, '_predicate': {
+                                                                           '_id': 'http://cltl.nl/leolani/n2mu/have-dinner',
+                                                                           '_label': 'have-dinner', '_offset': None,
+                                                                           '_confidence': 0.0, '_cardinality': 1},
+                                                                        '_entity': {
+                                                                            '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                            '_label': '', '_offset': None,
+                                                                            '_confidence': 0.0, '_types': ['food']}},
+                                                                       {'_known_entity': {
+                                                                           '_id': 'http://cltl.nl/leolani/world/',
+                                                                           '_label': 'None', '_offset': None,
+                                                                           '_confidence': 0.0,
+                                                                           '_types': ['11z-11-eicosenyl-oleate',
+                                                                                      'Instance']}, '_predicate': {
+                                                                           '_id': 'http://cltl.nl/leolani/n2mu/have-lunch',
+                                                                           '_label': 'have-lunch', '_offset': None,
+                                                                           '_confidence': 0.0, '_cardinality': 1},
+                                                                        '_entity': {
+                                                                            '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                            '_label': '', '_offset': None,
+                                                                            '_confidence': 0.0, '_types': ['food']}},
+                                                                       {'_known_entity': {
+                                                                           '_id': 'http://cltl.nl/leolani/world/',
+                                                                           '_label': 'None', '_offset': None,
+                                                                           '_confidence': 0.0,
+                                                                           '_types': ['11z-11-eicosenyl-oleate',
+                                                                                      'Instance']}, '_predicate': {
+                                                                           '_id': 'http://cltl.nl/leolani/n2mu/prepare-drink',
+                                                                           '_label': 'prepare-drink', '_offset': None,
+                                                                           '_confidence': 0.0, '_cardinality': 1},
+                                                                        '_entity': {
+                                                                            '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                            '_label': '', '_offset': None,
+                                                                            '_confidence': 0.0, '_types': ['drink']}},
+                                                                       {'_known_entity': {
+                                                                           '_id': 'http://cltl.nl/leolani/world/',
+                                                                           '_label': 'None', '_offset': None,
+                                                                           '_confidence': 0.0,
+                                                                           '_types': ['11z-11-eicosenyl-oleate',
+                                                                                      'Instance']}, '_predicate': {
+                                                                           '_id': 'http://cltl.nl/leolani/n2mu/drink',
+                                                                           '_label': 'drink', '_offset': None,
+                                                                           '_confidence': 0.0, '_cardinality': 1},
+                                                                        '_entity': {
+                                                                            '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                            '_label': '', '_offset': None,
+                                                                            '_confidence': 0.0, '_types': ['drink']}},
+                                                                       {'_known_entity': {
+                                                                           '_id': 'http://cltl.nl/leolani/world/',
+                                                                           '_label': 'None', '_offset': None,
+                                                                           '_confidence': 0.0,
+                                                                           '_types': ['11z-11-eicosenyl-oleate',
+                                                                                      'Instance']}, '_predicate': {
+                                                                           '_id': 'http://cltl.nl/leolani/n2mu/write',
+                                                                           '_label': 'write', '_offset': None,
+                                                                           '_confidence': 0.0, '_cardinality': 1},
+                                                                        '_entity': {
+                                                                            '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                            '_label': '', '_offset': None,
+                                                                            '_confidence': 0.0, '_types': ['book']}},
+                                                                       {'_known_entity': {
+                                                                           '_id': 'http://cltl.nl/leolani/world/',
+                                                                           '_label': 'None', '_offset': None,
+                                                                           '_confidence': 0.0,
+                                                                           '_types': ['11z-11-eicosenyl-oleate',
+                                                                                      'Instance']}, '_predicate': {
+                                                                           '_id': 'http://cltl.nl/leolani/n2mu/be-descendant-of',
+                                                                           '_label': 'be-descendant-of',
+                                                                           '_offset': None, '_confidence': 0.0,
+                                                                           '_cardinality': 1}, '_entity': {
+                                                                           '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                           '_label': '', '_offset': None,
+                                                                           '_confidence': 0.0, '_types': ['person']}},
+                                                                       {'_known_entity': {
+                                                                           '_id': 'http://cltl.nl/leolani/world/',
+                                                                           '_label': 'None', '_offset': None,
+                                                                           '_confidence': 0.0,
+                                                                           '_types': ['11z-11-eicosenyl-oleate',
+                                                                                      'Instance']}, '_predicate': {
+                                                                           '_id': 'http://cltl.nl/leolani/n2mu/be-family-of',
+                                                                           '_label': 'be-family-of', '_offset': None,
+                                                                           '_confidence': 0.0, '_cardinality': 1},
+                                                                        '_entity': {
+                                                                            '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                            '_label': '', '_offset': None,
+                                                                            '_confidence': 0.0, '_types': ['person']}},
+                                                                       {'_known_entity': {
+                                                                           '_id': 'http://cltl.nl/leolani/world/',
+                                                                           '_label': 'None', '_offset': None,
+                                                                           '_confidence': 0.0,
+                                                                           '_types': ['11z-11-eicosenyl-oleate',
+                                                                                      'Instance']}, '_predicate': {
+                                                                           '_id': 'http://cltl.nl/leolani/n2mu/be-ancestor-of',
+                                                                           '_label': 'be-ancestor-of', '_offset': None,
+                                                                           '_confidence': 0.0, '_cardinality': 1},
+                                                                        '_entity': {
+                                                                            '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                            '_label': '', '_offset': None,
+                                                                            '_confidence': 0.0, '_types': ['person']}},
+                                                                       {'_known_entity': {
+                                                                           '_id': 'http://cltl.nl/leolani/world/',
+                                                                           '_label': 'None', '_offset': None,
+                                                                           '_confidence': 0.0,
+                                                                           '_types': ['11z-11-eicosenyl-oleate',
+                                                                                      'Instance']}, '_predicate': {
+                                                                           '_id': 'http://cltl.nl/leolani/n2mu/be-colleague-of',
+                                                                           '_label': 'be-colleague-of', '_offset': None,
+                                                                           '_confidence': 0.0, '_cardinality': 1},
+                                                                        '_entity': {
+                                                                            '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                            '_label': '', '_offset': None,
+                                                                            '_confidence': 0.0, '_types': ['agent']}},
+                                                                       {'_known_entity': {
+                                                                           '_id': 'http://cltl.nl/leolani/world/',
+                                                                           '_label': 'None', '_offset': None,
+                                                                           '_confidence': 0.0,
+                                                                           '_types': ['11z-11-eicosenyl-oleate',
+                                                                                      'Instance']}, '_predicate': {
+                                                                           '_id': 'http://cltl.nl/leolani/n2mu/know',
+                                                                           '_label': 'know', '_offset': None,
+                                                                           '_confidence': 0.0, '_cardinality': 1},
+                                                                        '_entity': {
+                                                                            '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                            '_label': '', '_offset': None,
+                                                                            '_confidence': 0.0, '_types': ['agent']}},
+                                                                       {'_known_entity': {
+                                                                           '_id': 'http://cltl.nl/leolani/world/',
+                                                                           '_label': 'None', '_offset': None,
+                                                                           '_confidence': 0.0,
+                                                                           '_types': ['11z-11-eicosenyl-oleate',
+                                                                                      'Instance']}, '_predicate': {
+                                                                           '_id': 'http://cltl.nl/leolani/n2mu/be-friends-with',
+                                                                           '_label': 'be-friends-with', '_offset': None,
+                                                                           '_confidence': 0.0, '_cardinality': 1},
+                                                                        '_entity': {
+                                                                            '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                            '_label': '', '_offset': None,
+                                                                            '_confidence': 0.0, '_types': ['agent']}},
+                                                                       {'_known_entity': {
+                                                                           '_id': 'http://cltl.nl/leolani/world/',
+                                                                           '_label': 'None', '_offset': None,
+                                                                           '_confidence': 0.0,
+                                                                           '_types': ['11z-11-eicosenyl-oleate',
+                                                                                      'Instance']}, '_predicate': {
+                                                                           '_id': 'http://cltl.nl/leolani/n2mu/be-from',
+                                                                           '_label': 'be-from', '_offset': None,
+                                                                           '_confidence': 0.0, '_cardinality': 1},
+                                                                        '_entity': {
+                                                                            '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                            '_label': '', '_offset': None,
+                                                                            '_confidence': 0.0,
+                                                                            '_types': ['location']}},
+                                                                       {'_known_entity': {
+                                                                           '_id': 'http://cltl.nl/leolani/world/',
+                                                                           '_label': 'None', '_offset': None,
+                                                                           '_confidence': 0.0,
+                                                                           '_types': ['11z-11-eicosenyl-oleate',
+                                                                                      'Instance']}, '_predicate': {
+                                                                           '_id': 'http://cltl.nl/leolani/n2mu/listen-to',
+                                                                           '_label': 'listen-to', '_offset': None,
+                                                                           '_confidence': 0.0, '_cardinality': 1},
+                                                                        '_entity': {
+                                                                            '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                            '_label': '', '_offset': None,
+                                                                            '_confidence': 0.0,
+                                                                            '_types': ['musical-work']}},
+                                                                       {'_known_entity': {
+                                                                           '_id': 'http://cltl.nl/leolani/world/',
+                                                                           '_label': 'None', '_offset': None,
+                                                                           '_confidence': 0.0,
+                                                                           '_types': ['11z-11-eicosenyl-oleate',
+                                                                                      'Instance']}, '_predicate': {
+                                                                           '_id': 'http://cltl.nl/leolani/n2mu/live-in',
+                                                                           '_label': 'live-in', '_offset': None,
+                                                                           '_confidence': 0.0, '_cardinality': 1},
+                                                                        '_entity': {
+                                                                            '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                            '_label': '', '_offset': None,
+                                                                            '_confidence': 0.0,
+                                                                            '_types': ['location']}},
+                                                                       {'_known_entity': {
+                                                                           '_id': 'http://cltl.nl/leolani/world/',
+                                                                           '_label': 'None', '_offset': None,
+                                                                           '_confidence': 0.0,
+                                                                           '_types': ['11z-11-eicosenyl-oleate',
+                                                                                      'Instance']}, '_predicate': {
+                                                                           '_id': 'http://cltl.nl/leolani/n2mu/love',
+                                                                           '_label': 'love', '_offset': None,
+                                                                           '_confidence': 0.0, '_cardinality': 1},
+                                                                        '_entity': {
+                                                                            '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                            '_label': '', '_offset': None,
+                                                                            '_confidence': 0.0, '_types': ['agent']}},
+                                                                       {'_known_entity': {
+                                                                           '_id': 'http://cltl.nl/leolani/world/',
+                                                                           '_label': 'None', '_offset': None,
+                                                                           '_confidence': 0.0,
+                                                                           '_types': ['11z-11-eicosenyl-oleate',
+                                                                                      'Instance']}, '_predicate': {
+                                                                           '_id': 'http://cltl.nl/leolani/n2mu/like',
+                                                                           '_label': 'like', '_offset': None,
+                                                                           '_confidence': 0.0, '_cardinality': 1},
+                                                                        '_entity': {
+                                                                            '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                            '_label': '', '_offset': None,
+                                                                            '_confidence': 0.0, '_types': ['agent']}},
+                                                                       {'_known_entity': {
+                                                                           '_id': 'http://cltl.nl/leolani/world/',
+                                                                           '_label': 'None', '_offset': None,
+                                                                           '_confidence': 0.0,
+                                                                           '_types': ['11z-11-eicosenyl-oleate',
+                                                                                      'Instance']}, '_predicate': {
+                                                                           '_id': 'http://cltl.nl/leolani/n2mu/music',
+                                                                           '_label': 'music', '_offset': None,
+                                                                           '_confidence': 0.0, '_cardinality': 1},
+                                                                        '_entity': {
+                                                                            '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                            '_label': '', '_offset': None,
+                                                                            '_confidence': 0.0,
+                                                                            '_types': ['musical-work']}},
+                                                                       {'_known_entity': {
+                                                                           '_id': 'http://cltl.nl/leolani/world/',
+                                                                           '_label': 'None', '_offset': None,
+                                                                           '_confidence': 0.0,
+                                                                           '_types': ['11z-11-eicosenyl-oleate',
+                                                                                      'Instance']}, '_predicate': {
+                                                                           '_id': 'http://cltl.nl/leolani/n2mu/own',
+                                                                           '_label': 'own', '_offset': None,
+                                                                           '_confidence': 0.0, '_cardinality': 1},
+                                                                        '_entity': {
+                                                                            '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                            '_label': '', '_offset': None,
+                                                                            '_confidence': 0.0, '_types': ['object']}},
+                                                                       {'_known_entity': {
+                                                                           '_id': 'http://cltl.nl/leolani/world/',
+                                                                           '_label': 'None', '_offset': None,
+                                                                           '_confidence': 0.0,
+                                                                           '_types': ['11z-11-eicosenyl-oleate',
+                                                                                      'Instance']}, '_predicate': {
+                                                                           '_id': 'http://cltl.nl/leolani/n2mu/read',
+                                                                           '_label': 'read', '_offset': None,
+                                                                           '_confidence': 0.0, '_cardinality': 1},
+                                                                        '_entity': {
+                                                                            '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                            '_label': '', '_offset': None,
+                                                                            '_confidence': 0.0, '_types': ['book']}},
+                                                                       {'_known_entity': {
+                                                                           '_id': 'http://cltl.nl/leolani/world/',
+                                                                           '_label': 'None', '_offset': None,
+                                                                           '_confidence': 0.0,
+                                                                           '_types': ['11z-11-eicosenyl-oleate',
+                                                                                      'Instance']}, '_predicate': {
+                                                                           '_id': 'http://cltl.nl/leolani/n2mu/study-at',
+                                                                           '_label': 'study-at', '_offset': None,
+                                                                           '_confidence': 0.0, '_cardinality': 1},
+                                                                        '_entity': {
+                                                                            '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                            '_label': '', '_offset': None,
+                                                                            '_confidence': 0.0,
+                                                                            '_types': ['institution']}},
+                                                                       {'_known_entity': {
+                                                                           '_id': 'http://cltl.nl/leolani/world/',
+                                                                           '_label': 'None', '_offset': None,
+                                                                           '_confidence': 0.0,
+                                                                           '_types': ['11z-11-eicosenyl-oleate',
+                                                                                      'Instance']}, '_predicate': {
+                                                                           '_id': 'http://cltl.nl/leolani/n2mu/be-member-of',
+                                                                           '_label': 'be-member-of', '_offset': None,
+                                                                           '_confidence': 0.0, '_cardinality': 1},
+                                                                        '_entity': {
+                                                                            '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                            '_label': '', '_offset': None,
+                                                                            '_confidence': 0.0,
+                                                                            '_types': ['institution']}},
+                                                                       {'_known_entity': {
+                                                                           '_id': 'http://cltl.nl/leolani/world/',
+                                                                           '_label': 'None', '_offset': None,
+                                                                           '_confidence': 0.0,
+                                                                           '_types': ['11z-11-eicosenyl-oleate',
+                                                                                      'Instance']}, '_predicate': {
+                                                                           '_id': 'http://cltl.nl/leolani/n2mu/travel-to',
+                                                                           '_label': 'travel-to', '_offset': None,
+                                                                           '_confidence': 0.0, '_cardinality': 1},
+                                                                        '_entity': {
+                                                                            '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                            '_label': '', '_offset': None,
+                                                                            '_confidence': 0.0,
+                                                                            '_types': ['location']}},
+                                                                       {'_known_entity': {
+                                                                           '_id': 'http://cltl.nl/leolani/world/',
+                                                                           '_label': 'None', '_offset': None,
+                                                                           '_confidence': 0.0,
+                                                                           '_types': ['11z-11-eicosenyl-oleate',
+                                                                                      'Instance']}, '_predicate': {
+                                                                           '_id': 'http://cltl.nl/leolani/n2mu/visit',
+                                                                           '_label': 'visit', '_offset': None,
+                                                                           '_confidence': 0.0, '_cardinality': 1},
+                                                                        '_entity': {
+                                                                            '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                            '_label': '', '_offset': None,
+                                                                            '_confidence': 0.0, '_types': ['agent']}},
+                                                                       {'_known_entity': {
+                                                                           '_id': 'http://cltl.nl/leolani/world/',
+                                                                           '_label': 'None', '_offset': None,
+                                                                           '_confidence': 0.0,
+                                                                           '_types': ['11z-11-eicosenyl-oleate',
+                                                                                      'Instance']}, '_predicate': {
+                                                                           '_id': 'http://cltl.nl/leolani/n2mu/watch',
+                                                                           '_label': 'watch', '_offset': None,
+                                                                           '_confidence': 0.0, '_cardinality': 1},
+                                                                        '_entity': {
+                                                                            '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                            '_label': '', '_offset': None,
+                                                                            '_confidence': 0.0, '_types': ['movie']}},
+                                                                       {'_known_entity': {
+                                                                           '_id': 'http://cltl.nl/leolani/world/',
+                                                                           '_label': 'None', '_offset': None,
+                                                                           '_confidence': 0.0,
+                                                                           '_types': ['11z-11-eicosenyl-oleate',
+                                                                                      'Instance']}, '_predicate': {
+                                                                           '_id': 'http://cltl.nl/leolani/n2mu/work-as',
+                                                                           '_label': 'work-as', '_offset': None,
+                                                                           '_confidence': 0.0, '_cardinality': 1},
+                                                                        '_entity': {
+                                                                            '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                            '_label': '', '_offset': None,
+                                                                            '_confidence': 0.0,
+                                                                            '_types': ['profession']}},
+                                                                       {'_known_entity': {
+                                                                           '_id': 'http://cltl.nl/leolani/world/',
+                                                                           '_label': 'None', '_offset': None,
+                                                                           '_confidence': 0.0,
+                                                                           '_types': ['11z-11-eicosenyl-oleate',
+                                                                                      'Instance']}, '_predicate': {
+                                                                           '_id': 'http://cltl.nl/leolani/n2mu/work-at',
+                                                                           '_label': 'work-at', '_offset': None,
+                                                                           '_confidence': 0.0, '_cardinality': 1},
+                                                                        '_entity': {
+                                                                            '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                            '_label': '', '_offset': None,
+                                                                            '_confidence': 0.0,
+                                                                            '_types': ['institution']}},
+                                                                       {'_known_entity': {
+                                                                           '_id': 'http://cltl.nl/leolani/world/',
+                                                                           '_label': 'None', '_offset': None,
+                                                                           '_confidence': 0.0,
+                                                                           '_types': ['11z-11-eicosenyl-oleate',
+                                                                                      'Instance']}, '_predicate': {
+                                                                           '_id': 'http://cltl.nl/leolani/n2mu/sport',
+                                                                           '_label': 'sport', '_offset': None,
+                                                                           '_confidence': 0.0, '_cardinality': 1},
+                                                                        '_entity': {
+                                                                            '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                            '_label': '', '_offset': None,
+                                                                            '_confidence': 0.0, '_types': ['sport']}}],
+                                                          '_complement': [{'_known_entity': {
+                                                              '_id': 'http://cltl.nl/leolani/world/', '_label': 'None',
+                                                              '_offset': None, '_confidence': 0.0,
+                                                              '_types': ['11z-11-eicosenyl-oleate', 'Instance']},
+                                                                           '_predicate': {
+                                                                               '_id': 'http://cltl.nl/leolani/n2mu/be-brother-of',
+                                                                               '_label': 'be-brother-of',
+                                                                               '_offset': None, '_confidence': 0.0,
+                                                                               '_cardinality': 1}, '_entity': {
+                                                                  '_id': 'http://cltl.nl/leolani/n2mu/', '_label': '',
+                                                                  '_offset': None, '_confidence': 0.0,
+                                                                  '_types': ['person']}},
+                                                                          {'_known_entity': {
+                                                                              '_id': 'http://cltl.nl/leolani/world/',
+                                                                              '_label': 'None', '_offset': None,
+                                                                              '_confidence': 0.0,
+                                                                              '_types': ['11z-11-eicosenyl-oleate',
+                                                                                         'Instance']}, '_predicate': {
+                                                                              '_id': 'http://cltl.nl/leolani/n2mu/be-sibling-of',
+                                                                              '_label': 'be-sibling-of',
+                                                                              '_offset': None, '_confidence': 0.0,
+                                                                              '_cardinality': 1}, '_entity': {
+                                                                              '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                              '_label': '', '_offset': None,
+                                                                              '_confidence': 0.0,
+                                                                              '_types': ['person']}},
+                                                                          {'_known_entity': {
+                                                                              '_id': 'http://cltl.nl/leolani/world/',
+                                                                              '_label': 'None', '_offset': None,
+                                                                              '_confidence': 0.0,
+                                                                              '_types': ['11z-11-eicosenyl-oleate',
+                                                                                         'Instance']}, '_predicate': {
+                                                                              '_id': 'http://cltl.nl/leolani/n2mu/be-daughter-of',
+                                                                              '_label': 'be-daughter-of',
+                                                                              '_offset': None, '_confidence': 0.0,
+                                                                              '_cardinality': 1}, '_entity': {
+                                                                              '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                              '_label': '', '_offset': None,
+                                                                              '_confidence': 0.0,
+                                                                              '_types': ['person']}},
+                                                                          {'_known_entity': {
+                                                                              '_id': 'http://cltl.nl/leolani/world/',
+                                                                              '_label': 'None', '_offset': None,
+                                                                              '_confidence': 0.0,
+                                                                              '_types': ['11z-11-eicosenyl-oleate',
+                                                                                         'Instance']}, '_predicate': {
+                                                                              '_id': 'http://cltl.nl/leolani/n2mu/be-child-of',
+                                                                              '_label': 'be-child-of', '_offset': None,
+                                                                              '_confidence': 0.0, '_cardinality': 1},
+                                                                           '_entity': {
+                                                                               '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                               '_label': '', '_offset': None,
+                                                                               '_confidence': 0.0,
+                                                                               '_types': ['person']}},
+                                                                          {'_known_entity': {
+                                                                              '_id': 'http://cltl.nl/leolani/world/',
+                                                                              '_label': 'None', '_offset': None,
+                                                                              '_confidence': 0.0,
+                                                                              '_types': ['11z-11-eicosenyl-oleate',
+                                                                                         'Instance']}, '_predicate': {
+                                                                              '_id': 'http://cltl.nl/leolani/n2mu/be-son-of',
+                                                                              '_label': 'be-son-of', '_offset': None,
+                                                                              '_confidence': 0.0, '_cardinality': 1},
+                                                                           '_entity': {
+                                                                               '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                               '_label': '', '_offset': None,
+                                                                               '_confidence': 0.0,
+                                                                               '_types': ['person']}},
+                                                                          {'_known_entity': {
+                                                                              '_id': 'http://cltl.nl/leolani/world/',
+                                                                              '_label': 'None', '_offset': None,
+                                                                              '_confidence': 0.0,
+                                                                              '_types': ['11z-11-eicosenyl-oleate',
+                                                                                         'Instance']}, '_predicate': {
+                                                                              '_id': 'http://cltl.nl/leolani/n2mu/be-father-of',
+                                                                              '_label': 'be-father-of', '_offset': None,
+                                                                              '_confidence': 0.0, '_cardinality': 1},
+                                                                           '_entity': {
+                                                                               '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                               '_label': '', '_offset': None,
+                                                                               '_confidence': 0.0,
+                                                                               '_types': ['person']}},
+                                                                          {'_known_entity': {
+                                                                              '_id': 'http://cltl.nl/leolani/world/',
+                                                                              '_label': 'None', '_offset': None,
+                                                                              '_confidence': 0.0,
+                                                                              '_types': ['11z-11-eicosenyl-oleate',
+                                                                                         'Instance']}, '_predicate': {
+                                                                              '_id': 'http://cltl.nl/leolani/n2mu/be-parent-of',
+                                                                              '_label': 'be-parent-of', '_offset': None,
+                                                                              '_confidence': 0.0, '_cardinality': 1},
+                                                                           '_entity': {
+                                                                               '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                               '_label': '', '_offset': None,
+                                                                               '_confidence': 0.0,
+                                                                               '_types': ['person']}},
+                                                                          {'_known_entity': {
+                                                                              '_id': 'http://cltl.nl/leolani/world/',
+                                                                              '_label': 'None', '_offset': None,
+                                                                              '_confidence': 0.0,
+                                                                              '_types': ['11z-11-eicosenyl-oleate',
+                                                                                         'Instance']}, '_predicate': {
+                                                                              '_id': 'http://cltl.nl/leolani/n2mu/be-mother-of',
+                                                                              '_label': 'be-mother-of', '_offset': None,
+                                                                              '_confidence': 0.0, '_cardinality': 1},
+                                                                           '_entity': {
+                                                                               '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                               '_label': '', '_offset': None,
+                                                                               '_confidence': 0.0,
+                                                                               '_types': ['person']}},
+                                                                          {'_known_entity': {
+                                                                              '_id': 'http://cltl.nl/leolani/world/',
+                                                                              '_label': 'None', '_offset': None,
+                                                                              '_confidence': 0.0,
+                                                                              '_types': ['11z-11-eicosenyl-oleate',
+                                                                                         'Instance']}, '_predicate': {
+                                                                              '_id': 'http://cltl.nl/leolani/n2mu/be-grandfather-of',
+                                                                              '_label': 'be-grandfather-of',
+                                                                              '_offset': None, '_confidence': 0.0,
+                                                                              '_cardinality': 1}, '_entity': {
+                                                                              '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                              '_label': '', '_offset': None,
+                                                                              '_confidence': 0.0,
+                                                                              '_types': ['person']}},
+                                                                          {'_known_entity': {
+                                                                              '_id': 'http://cltl.nl/leolani/world/',
+                                                                              '_label': 'None', '_offset': None,
+                                                                              '_confidence': 0.0,
+                                                                              '_types': ['11z-11-eicosenyl-oleate',
+                                                                                         'Instance']}, '_predicate': {
+                                                                              '_id': 'http://cltl.nl/leolani/n2mu/be-grandparent-of',
+                                                                              '_label': 'be-grandparent-of',
+                                                                              '_offset': None, '_confidence': 0.0,
+                                                                              '_cardinality': 1}, '_entity': {
+                                                                              '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                              '_label': '', '_offset': None,
+                                                                              '_confidence': 0.0,
+                                                                              '_types': ['person']}},
+                                                                          {'_known_entity': {
+                                                                              '_id': 'http://cltl.nl/leolani/world/',
+                                                                              '_label': 'None', '_offset': None,
+                                                                              '_confidence': 0.0,
+                                                                              '_types': ['11z-11-eicosenyl-oleate',
+                                                                                         'Instance']}, '_predicate': {
+                                                                              '_id': 'http://cltl.nl/leolani/n2mu/be-grandmother-of',
+                                                                              '_label': 'be-grandmother-of',
+                                                                              '_offset': None, '_confidence': 0.0,
+                                                                              '_cardinality': 1}, '_entity': {
+                                                                              '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                              '_label': '', '_offset': None,
+                                                                              '_confidence': 0.0,
+                                                                              '_types': ['person']}},
+                                                                          {'_known_entity': {
+                                                                              '_id': 'http://cltl.nl/leolani/world/',
+                                                                              '_label': 'None', '_offset': None,
+                                                                              '_confidence': 0.0,
+                                                                              '_types': ['11z-11-eicosenyl-oleate',
+                                                                                         'Instance']}, '_predicate': {
+                                                                              '_id': 'http://cltl.nl/leolani/n2mu/be-husband-of',
+                                                                              '_label': 'be-husband-of',
+                                                                              '_offset': None, '_confidence': 0.0,
+                                                                              '_cardinality': 1}, '_entity': {
+                                                                              '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                              '_label': '', '_offset': None,
+                                                                              '_confidence': 0.0,
+                                                                              '_types': ['person']}},
+                                                                          {'_known_entity': {
+                                                                              '_id': 'http://cltl.nl/leolani/world/',
+                                                                              '_label': 'None', '_offset': None,
+                                                                              '_confidence': 0.0,
+                                                                              '_types': ['11z-11-eicosenyl-oleate',
+                                                                                         'Instance']}, '_predicate': {
+                                                                              '_id': 'http://cltl.nl/leolani/n2mu/be-spouse-of',
+                                                                              '_label': 'be-spouse-of', '_offset': None,
+                                                                              '_confidence': 0.0, '_cardinality': 1},
+                                                                           '_entity': {
+                                                                               '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                               '_label': '', '_offset': None,
+                                                                               '_confidence': 0.0,
+                                                                               '_types': ['person']}},
+                                                                          {'_known_entity': {
+                                                                              '_id': 'http://cltl.nl/leolani/world/',
+                                                                              '_label': 'None', '_offset': None,
+                                                                              '_confidence': 0.0,
+                                                                              '_types': ['11z-11-eicosenyl-oleate',
+                                                                                         'Instance']}, '_predicate': {
+                                                                              '_id': 'http://cltl.nl/leolani/n2mu/be-wife-of',
+                                                                              '_label': 'be-wife-of', '_offset': None,
+                                                                              '_confidence': 0.0, '_cardinality': 1},
+                                                                           '_entity': {
+                                                                               '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                               '_label': '', '_offset': None,
+                                                                               '_confidence': 0.0,
+                                                                               '_types': ['person']}},
+                                                                          {'_known_entity': {
+                                                                              '_id': 'http://cltl.nl/leolani/world/',
+                                                                              '_label': 'None', '_offset': None,
+                                                                              '_confidence': 0.0,
+                                                                              '_types': ['11z-11-eicosenyl-oleate',
+                                                                                         'Instance']}, '_predicate': {
+                                                                              '_id': 'http://cltl.nl/leolani/n2mu/be-partner-of',
+                                                                              '_label': 'be-partner-of',
+                                                                              '_offset': None, '_confidence': 0.0,
+                                                                              '_cardinality': 1}, '_entity': {
+                                                                              '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                              '_label': '', '_offset': None,
+                                                                              '_confidence': 0.0,
+                                                                              '_types': ['person']}},
+                                                                          {'_known_entity': {
+                                                                              '_id': 'http://cltl.nl/leolani/world/',
+                                                                              '_label': 'None', '_offset': None,
+                                                                              '_confidence': 0.0,
+                                                                              '_types': ['11z-11-eicosenyl-oleate',
+                                                                                         'Instance']}, '_predicate': {
+                                                                              '_id': 'http://cltl.nl/leolani/n2mu/be-sister-of',
+                                                                              '_label': 'be-sister-of', '_offset': None,
+                                                                              '_confidence': 0.0, '_cardinality': 1},
+                                                                           '_entity': {
+                                                                               '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                               '_label': '', '_offset': None,
+                                                                               '_confidence': 0.0,
+                                                                               '_types': ['person']}},
+                                                                          {'_known_entity': {
+                                                                              '_id': 'http://cltl.nl/leolani/world/',
+                                                                              '_label': 'None', '_offset': None,
+                                                                              '_confidence': 0.0,
+                                                                              '_types': ['11z-11-eicosenyl-oleate',
+                                                                                         'Instance']}, '_predicate': {
+                                                                              '_id': 'http://cltl.nl/leolani/n2mu/be-descendant-of',
+                                                                              '_label': 'be-descendant-of',
+                                                                              '_offset': None, '_confidence': 0.0,
+                                                                              '_cardinality': 1}, '_entity': {
+                                                                              '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                              '_label': '', '_offset': None,
+                                                                              '_confidence': 0.0,
+                                                                              '_types': ['person']}},
+                                                                          {'_known_entity': {
+                                                                              '_id': 'http://cltl.nl/leolani/world/',
+                                                                              '_label': 'None', '_offset': None,
+                                                                              '_confidence': 0.0,
+                                                                              '_types': ['11z-11-eicosenyl-oleate',
+                                                                                         'Instance']}, '_predicate': {
+                                                                              '_id': 'http://cltl.nl/leolani/n2mu/be-family-of',
+                                                                              '_label': 'be-family-of', '_offset': None,
+                                                                              '_confidence': 0.0, '_cardinality': 1},
+                                                                           '_entity': {
+                                                                               '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                               '_label': '', '_offset': None,
+                                                                               '_confidence': 0.0,
+                                                                               '_types': ['person']}},
+                                                                          {'_known_entity': {
+                                                                              '_id': 'http://cltl.nl/leolani/world/',
+                                                                              '_label': 'None', '_offset': None,
+                                                                              '_confidence': 0.0,
+                                                                              '_types': ['11z-11-eicosenyl-oleate',
+                                                                                         'Instance']}, '_predicate': {
+                                                                              '_id': 'http://cltl.nl/leolani/n2mu/be-ancestor-of',
+                                                                              '_label': 'be-ancestor-of',
+                                                                              '_offset': None, '_confidence': 0.0,
+                                                                              '_cardinality': 1}, '_entity': {
+                                                                              '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                              '_label': '', '_offset': None,
+                                                                              '_confidence': 0.0,
+                                                                              '_types': ['person']}},
+                                                                          {'_known_entity': {
+                                                                              '_id': 'http://cltl.nl/leolani/world/',
+                                                                              '_label': 'None', '_offset': None,
+                                                                              '_confidence': 0.0,
+                                                                              '_types': ['11z-11-eicosenyl-oleate',
+                                                                                         'Instance']}, '_predicate': {
+                                                                              '_id': 'http://cltl.nl/leolani/n2mu/be-colleague-of',
+                                                                              '_label': 'be-colleague-of',
+                                                                              '_offset': None, '_confidence': 0.0,
+                                                                              '_cardinality': 1}, '_entity': {
+                                                                              '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                              '_label': '', '_offset': None,
+                                                                              '_confidence': 0.0, '_types': ['agent']}},
+                                                                          {'_known_entity': {
+                                                                              '_id': 'http://cltl.nl/leolani/world/',
+                                                                              '_label': 'None', '_offset': None,
+                                                                              '_confidence': 0.0,
+                                                                              '_types': ['11z-11-eicosenyl-oleate',
+                                                                                         'Instance']}, '_predicate': {
+                                                                              '_id': 'http://cltl.nl/leolani/n2mu/know',
+                                                                              '_label': 'know', '_offset': None,
+                                                                              '_confidence': 0.0, '_cardinality': 1},
+                                                                           '_entity': {
+                                                                               '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                               '_label': '', '_offset': None,
+                                                                               '_confidence': 0.0,
+                                                                               '_types': ['agent']}},
+                                                                          {'_known_entity': {
+                                                                              '_id': 'http://cltl.nl/leolani/world/',
+                                                                              '_label': 'None', '_offset': None,
+                                                                              '_confidence': 0.0,
+                                                                              '_types': ['11z-11-eicosenyl-oleate',
+                                                                                         'Instance']}, '_predicate': {
+                                                                              '_id': 'http://cltl.nl/leolani/n2mu/be-friends-with',
+                                                                              '_label': 'be-friends-with',
+                                                                              '_offset': None, '_confidence': 0.0,
+                                                                              '_cardinality': 1}, '_entity': {
+                                                                              '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                              '_label': '', '_offset': None,
+                                                                              '_confidence': 0.0, '_types': ['agent']}},
+                                                                          {'_known_entity': {
+                                                                              '_id': 'http://cltl.nl/leolani/world/',
+                                                                              '_label': 'None', '_offset': None,
+                                                                              '_confidence': 0.0,
+                                                                              '_types': ['11z-11-eicosenyl-oleate',
+                                                                                         'Instance']}, '_predicate': {
+                                                                              '_id': 'http://cltl.nl/leolani/n2mu/love',
+                                                                              '_label': 'love', '_offset': None,
+                                                                              '_confidence': 0.0, '_cardinality': 1},
+                                                                           '_entity': {
+                                                                               '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                               '_label': '', '_offset': None,
+                                                                               '_confidence': 0.0,
+                                                                               '_types': ['agent']}},
+                                                                          {'_known_entity': {
+                                                                              '_id': 'http://cltl.nl/leolani/world/',
+                                                                              '_label': 'None', '_offset': None,
+                                                                              '_confidence': 0.0,
+                                                                              '_types': ['11z-11-eicosenyl-oleate',
+                                                                                         'Instance']}, '_predicate': {
+                                                                              '_id': 'http://cltl.nl/leolani/n2mu/like',
+                                                                              '_label': 'like', '_offset': None,
+                                                                              '_confidence': 0.0, '_cardinality': 1},
+                                                                           '_entity': {
+                                                                               '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                               '_label': '', '_offset': None,
+                                                                               '_confidence': 0.0,
+                                                                               '_types': ['agent']}},
+                                                                          {'_known_entity': {
+                                                                              '_id': 'http://cltl.nl/leolani/world/',
+                                                                              '_label': 'None', '_offset': None,
+                                                                              '_confidence': 0.0,
+                                                                              '_types': ['11z-11-eicosenyl-oleate',
+                                                                                         'Instance']}, '_predicate': {
+                                                                              '_id': 'http://cltl.nl/leolani/n2mu/visit',
+                                                                              '_label': 'visit', '_offset': None,
+                                                                              '_confidence': 0.0, '_cardinality': 1},
+                                                                           '_entity': {
+                                                                               '_id': 'http://cltl.nl/leolani/n2mu/',
+                                                                               '_label': '', '_offset': None,
+                                                                               '_confidence': 0.0,
+                                                                               '_types': ['agent']}}]},
+                                     '_overlaps': {'_subject': [], '_complement': [{'_provenance': {
+                                         '_author': {'_id': 'http://cltl.nl/leolani/friends/stranger',
+                                                     '_label': 'stranger', '_offset': None, '_confidence': 0.0,
+                                                     '_types': ['Source', 'Actor']}, '_date': '2025-10-21'},
+                                                                                    '_entity': {
+                                                                                        '_id': 'http://cltl.nl/leolani/world/yes',
+                                                                                        '_label': 'yes',
+                                                                                        '_offset': None,
+                                                                                        '_confidence': 0.0,
+                                                                                        '_types': ['asteroid']}}, {
+                                                                                       '_provenance': {'_author': {
+                                                                                           '_id': 'http://cltl.nl/leolani/friends/stranger',
+                                                                                           '_label': 'stranger',
+                                                                                           '_offset': None,
+                                                                                           '_confidence': 0.0,
+                                                                                           '_types': ['Source',
+                                                                                                      'Actor']},
+                                                                                                       '_date': '2025-10-22'},
+                                                                                       '_entity': {
+                                                                                           '_id': 'http://cltl.nl/leolani/world/yes',
+                                                                                           '_label': 'yes',
+                                                                                           '_offset': None,
+                                                                                           '_confidence': 0.0,
+                                                                                           '_types': ['asteroid']}}, {
+                                                                                       '_provenance': {'_author': {
+                                                                                           '_id': 'http://cltl.nl/leolani/friends/stranger',
+                                                                                           '_label': 'stranger',
+                                                                                           '_offset': None,
+                                                                                           '_confidence': 0.0,
+                                                                                           '_types': ['Source',
+                                                                                                      'Actor']},
+                                                                                                       '_date': '2025-10-23'},
+                                                                                       '_entity': {
+                                                                                           '_id': 'http://cltl.nl/leolani/world/yes',
+                                                                                           '_label': 'yes',
+                                                                                           '_offset': None,
+                                                                                           '_confidence': 0.0,
+                                                                                           '_types': ['asteroid']}}, {
+                                                                                       '_provenance': {'_author': {
+                                                                                           '_id': 'http://cltl.nl/leolani/friends/stranger',
+                                                                                           '_label': 'stranger',
+                                                                                           '_offset': None,
+                                                                                           '_confidence': 0.0,
+                                                                                           '_types': ['Source',
+                                                                                                      'Actor']},
+                                                                                                       '_date': '2025-10-28'},
+                                                                                       '_entity': {
+                                                                                           '_id': 'http://cltl.nl/leolani/world/yes',
+                                                                                           '_label': 'yes',
+                                                                                           '_offset': None,
+                                                                                           '_confidence': 0.0,
+                                                                                           '_types': ['asteroid']}}, {
+                                                                                       '_provenance': {'_author': {
+                                                                                           '_id': 'http://cltl.nl/leolani/friends/stranger',
+                                                                                           '_label': 'stranger',
+                                                                                           '_offset': None,
+                                                                                           '_confidence': 0.0,
+                                                                                           '_types': ['Source',
+                                                                                                      'Actor']},
+                                                                                                       '_date': '2025-10-29'},
+                                                                                       '_entity': {
+                                                                                           '_id': 'http://cltl.nl/leolani/world/yes',
+                                                                                           '_label': 'yes',
+                                                                                           '_offset': None,
+                                                                                           '_confidence': 0.0,
+                                                                                           '_types': ['asteroid']}}, {
+                                                                                       '_provenance': {'_author': {
+                                                                                           '_id': 'http://cltl.nl/leolani/friends/stranger',
+                                                                                           '_label': 'stranger',
+                                                                                           '_offset': None,
+                                                                                           '_confidence': 0.0,
+                                                                                           '_types': ['Source',
+                                                                                                      'Actor']},
+                                                                                                       '_date': '2025-10-30'},
+                                                                                       '_entity': {
+                                                                                           '_id': 'http://cltl.nl/leolani/world/yes',
+                                                                                           '_label': 'yes',
+                                                                                           '_offset': None,
+                                                                                           '_confidence': 0.0,
+                                                                                           '_types': ['asteroid']}}, {
+                                                                                       '_provenance': {'_author': {
+                                                                                           '_id': 'http://cltl.nl/leolani/friends/stranger',
+                                                                                           '_label': 'stranger',
+                                                                                           '_offset': None,
+                                                                                           '_confidence': 0.0,
+                                                                                           '_types': ['Source',
+                                                                                                      'Actor']},
+                                                                                                       '_date': '2025-11-01'},
+                                                                                       '_entity': {
+                                                                                           '_id': 'http://cltl.nl/leolani/world/yes',
+                                                                                           '_label': 'yes',
+                                                                                           '_offset': None,
+                                                                                           '_confidence': 0.0,
+                                                                                           '_types': ['asteroid']}}, {
+                                                                                       '_provenance': {'_author': {
+                                                                                           '_id': 'http://cltl.nl/leolani/friends/stranger',
+                                                                                           '_label': 'stranger',
+                                                                                           '_offset': None,
+                                                                                           '_confidence': 0.0,
+                                                                                           '_types': ['Source',
+                                                                                                      'Actor']},
+                                                                                                       '_date': '2025-11-10'},
+                                                                                       '_entity': {
+                                                                                           '_id': 'http://cltl.nl/leolani/world/yes',
+                                                                                           '_label': 'yes',
+                                                                                           '_offset': None,
+                                                                                           '_confidence': 0.0,
+                                                                                           '_types': ['asteroid']}}]},
+                                     '_trust': 0.5},
+                        'rdf_log_path': 'storage/rdf/2025-11-10-09-53/brain_log_2025-11-10-09-53-47-068568'}
+
     key = '97b003f43e5e4d89a0444272828242c7.BMYErA3vAD-dNMfVQSOhyXai'
     model = "gpt-oss:120b"
     url = "https://ollama.com"
     replier = LenkaReplier(model_name=model, model_server="cloud", model_url=url, model_key=key,
-                           instruct=INSTRUCT, llamalize=True, temperature=0.2,
-                           max_tokens=250, show_lenka=True,
-                           thought_selector=RandomSelector())
-    reply = replier.llamalize_reply(test_in)
-    print(reply)
+                           instruct=INSTRUCT, llamalize=False, temperature=0.2,
+                           max_tokens=250, show_lenka=False,
+                           thought_selector=NSP())
+ #   reply = replier.llamalize_reply(test_in)
 
+    agent = "Leolani"
+    human = "Lenka"
+    utterances = [{"speaker": human, "utterance": "I love cats.", "dialogue_act": DialogueAct.STATEMENT},
+                  #                  {"speaker": agent, "utterance": "I have three white cats", "dialogue_act": DialogueAct.STATEMENT},
+                  {"speaker": agent, "utterance": "Do you also love dogs?", "dialogue_act": DialogueAct.QUESTION},
+                  {"speaker": human, "utterance": "No", "dialogue_act": DialogueAct.STATEMENT},
+                  ]
+    chat = Chat("Leolani", "Lenka")
+    for utterance in utterances:
+        replier.add_to_context(utterance["utterance"])
+    reply = replier.reply_to_statement_in_context(brain_response=__brain_response)
+    print(reply)
