@@ -254,6 +254,132 @@ class LenkaReplier(BasicReplier):
             say = self.llamalize_reply(say)
         return say
 
+    def reply_to_question(self, brain_response):
+        # Quick check if there is anything to do here
+        if not brain_response['response']:
+            return self._phrase_no_answer_to_question(brain_response['question'])
+
+        # TODO revise (we conjugate the predicate by doing this)
+        utterance = casefold_capsule(brain_response['question'], format='natural')
+        ### add the question to the local context
+        last_utterance = utterance['utterance']
+
+        self._context.append(last_utterance)
+        # Each triple is hashed, so we can figure out when we are about the say things double
+        handled_items = set()
+        brain_response['response'].sort(key=lambda x: x['authorlabel']['value'])
+
+        say = ''
+        previous_author = ''
+        previous_predicate = ''
+        gram_person = ''
+        gram_number = ''
+        for item in brain_response['response']:
+            # INITIALIZATION
+            subject, predicate, object = assign_spo(utterance, item)
+            if not predicate:
+                continue
+            elif "http://groundedannotationframework.org/gaf#" in predicate:
+                ### We skip the mentions because it clutters the output
+                continue
+            elif "http://groundedannotationframework.org/grasp#" in predicate:
+                ### We skip the mentions because it clutters the output
+                continue
+            elif "http://semanticweb.cs.vu.nl/2009/11/sem/" in predicate:
+                ### We skip SEM because it clutters the output
+                continue
+            elif "http://www.w3.org/1999/02/22" in predicate:
+                ### We skip RDF because it clutters the output
+                continue
+            elif "http://www.w3.org/2002/07/owl#sameAs" in predicate:
+                ### We skip owl because it clutters the output
+                continue
+            else:
+                predicate = predicate.replace('http://cltl.nl/leolani/n2mu/', '')
+                predicate = predicate.replace('http://www.w3.org/2000/01/rdf', '')
+                predicate = predicate.replace('schema#label', '')
+
+            author = replace_pronouns(utterance['author']['label'], author=item['authorlabel']['value'])
+            subject = replace_pronouns(utterance['author']['label'], entity_label=subject, role='subject')
+            object = replace_pronouns(utterance['author']['label'], entity_label=object, role='object')
+
+            subject = fix_entity(subject, utterance['author']['label'])
+            object = fix_entity(object, utterance['author']['label'])
+
+            # Hash item such that duplicate entries have the same hash
+            item_hash = '{}_{}_{}_{}'.format(subject, predicate, object, author)
+
+            # If this hash is already in handled items -> skip this item and move to the next one
+            if item_hash in handled_items:
+                continue
+            # Otherwise, add this item to the handled items (and handle item the usual way (with the code below))
+            else:
+                handled_items.add(item_hash)
+
+            # Get grammatical properties
+            subject_entry = lexicon_lookup(subject.lower())
+            if subject_entry and 'person' in subject_entry:
+                gram_person = subject_entry['person']
+            if subject_entry and 'number' in subject_entry:
+                gram_number = subject_entry['number']
+
+            # Deal with author
+            say, previous_author = deal_with_authors(author, previous_author, predicate, previous_predicate, say)
+
+            if predicate.endswith('is'):
+
+                say += object + ' is'
+                if object == author or subject == author:
+                    say += ' your '
+                elif object == 'leolani' or subject == 'leolani':
+                    say += ' my '
+                # if utterance['object']['label'].lower() == utterance['author']['label'].lower() or \
+                #         utterance['subject']['label'].lower() == utterance['author']['label'].lower():
+                #     say += ' your '
+                # elif utterance['object']['label'].lower() == 'leolani' or \
+                #         utterance['subject']['label'].lower() == 'leolani':
+                #     say += ' my '
+                say += predicate[:-3]
+
+                return say
+
+            else:  # TODO fix_predicate_morphology
+                be = {'first': 'am', 'second': 'are', 'third': 'is'}
+                if predicate == 'be':  # or third person singular
+                    if gram_number:
+                        if gram_number == 'singular':
+                            predicate = be[gram_person]
+                        else:
+                            predicate = 'are'
+                    else:
+                        # TODO: Is this a good default when 'number' is unknown?
+                        predicate = 'is'
+                elif gram_person == 'third' and '-' not in predicate:
+                    predicate += 's'
+
+            if 'certaintyValue' in item and item['certaintyValue']['value'] != 'CERTAIN':  # TODO extract correct certainty marker
+                predicate = 'maybe ' + predicate
+
+            if 'polarityValue' in item and item['polarityValue']['value'] != 'POSITIVE':
+                if ' ' in predicate:
+                    predicate = predicate.split()[0] + ' not ' + predicate.split()[1]
+                else:
+                    predicate = 'do not ' + predicate
+
+            ##### Adding the triple as a statement to the source attribution and perspective
+            say += subject + ' ' + predicate + ' ' + object
+
+            say += ' and '
+
+        # Remove last ' and' and return
+        say = say[:-5]
+        say = say.replace('-', ' ').replace('  ', ' ')
+        if self._llamalize:
+            say = self.llamalize_reply(say)
+        #### add the answer to the local conext
+        self._context.append(say)
+        return say
+
     def _phrase_no_answer_to_question(self, utterance):
         self._log.info(f"Empty response")
         subject_types = filtered_types_names(utterance['subject']['type']) \
@@ -389,7 +515,6 @@ class LenkaReplier(BasicReplier):
         if self._llamalize:
             reply = self.llamalize_reply(reply)
         return reply
-
 
     def reply_to_statement_in_context(self, brain_response, persist=False, thought_options=None, end_recursion=5):
         """
