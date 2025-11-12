@@ -124,16 +124,7 @@ class LenkaReplier(BasicReplier):
         self._context.append(utterance)
 
     def get_context(self, size=3):
-        context = ""
-        if len(self._context)>size:
-            for utterance in self._context[-(size):]:
-                if utterance not is None:
-                    context += utterance+". "
-        else:
-            for utterance in self._context:
-                if utterance not is None:
-                    context += utterance + ". "
-        return context
+        return ". ".join(utterance for utterance in self._context[-size:] if utterance)
 
     def reply_to_question(self, brain_response):
         # Quick check if there is anything to do here
