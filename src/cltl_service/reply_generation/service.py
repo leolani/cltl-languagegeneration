@@ -85,6 +85,7 @@ class ReplyGenerationService:
     def _process(self, event: Event[List[dict]]):
         if event.metadata.topic == self._scenario_topic:
             self._update_repliers(event)
+            return
 
         brain_responses = [brain_response_to_json(brain_response) for brain_response in event.payload]
 
