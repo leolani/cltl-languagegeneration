@@ -14,12 +14,13 @@ from cltl.reply_generation.thought_selectors.random_selector import RandomSelect
 from cltl.reply_generation.thought_selectors.nsp_selector import NSP
 from cltl.reply_generation.utils.phraser_utils import replace_pronouns, assign_spo, deal_with_authors, fix_entity
 from ollama import Client
+from cltl.combot.event.emissor import LeolaniContext
 
 # to use ollama pull the model from the terminal in the venv: ollama pull <model-name>
 LLAMA_MODEL = "llama3.2:1b"
 #LLAMA_MODEL = "llama3.2"
 
-INSTRUCT = 'Paraphrase the user input in plain simple English. The input can be a statement, a list of statements or a question.  Use at most two sentences. Be CONCISE and do NOT hallucinate. Do NOT include your instructions in the paraphrase.'
+INSTRUCT = 'Paraphrase the user input in plain simple English. The input can be a statement, a list of statements or a question.  Use at most two sentences. Be CONCISE and do NOT hallucinate. Do NOT include your instructions in the paraphrase. Try to connect the paraphrase to the preceding conversation and the context. '
 CONTENT_TYPE_SEPARATOR = ';'
 
 class LenkaReplier(BasicReplier):
@@ -99,14 +100,46 @@ class LenkaReplier(BasicReplier):
         self._log.info('LLM response %s: %s', type(response), response)
         return response
 
-    def llamalize_reply(self, reply):
+    def get_scenario_context_as_prompt_input(self, scenarioContext:LeolaniContext):
+        prompt = f"The interaction is between {scenarioContext.agent} and {scenarioContext.speaker} and it is taking place in {scenarioContext}. The agents has observed {str(scenarioContext.objects)}."
+        return prompt
+
+    def llamalize_reply(self, reply: str):
         response = reply
         if self._llamalize:
             self._log.info(f"Before llamatize: {response}")
             instruction = {'role': 'system', 'content': self._instruct}
             input = {'role': 'user', 'content': reply}
             prompt = [instruction, input]
-            self._log.info(f"Paraphrase prompt input for the LLM: {input}")
+            self._log.info(f"Paraphrase prompt input for the LLM: {prompt}")
+            if reply:
+                if self._show_original:
+                    response = "My original response was: "+reply+". "
+                paraphrase = self.call_llm(prompt)
+                if self._show_original:
+                    response += "This is how the LLM paraphrased it: " + paraphrase
+                else:
+                    response = paraphrase
+                self._log.info(f"After LLM patahrasing it:: {response}")
+            else:
+                self._log.info(f"There is no reply to paraphrase!")
+        return response
+
+    def llamalize_reply_with_context(self, reply: str, scenarioContext: LeolaniContext, conversationContext: str):
+        response = reply
+        if self._llamalize:
+            self._log.info(f"Before llamatize: {response}")
+            scenario_prompt = None
+            if scenarioContext:
+                scenario_prompt = self.get_scenario_context_as_prompt_input(scenarioContext.scenario)
+            if scenario_prompt:
+                instruction = {'role': 'system', 'content': self._instruct+scenario_prompt}
+            else:
+                instruction = {'role': 'system', 'content': self._instruct}
+            conversation = {'role': 'user', 'content': conversationContext}
+            input = {'role': 'user', 'content': reply}
+            prompt = [instruction, input]
+            self._log.info(f"Paraphrase prompt input for the LLM: {prompt}")
             if reply:
                 if self._show_original:
                     response = "My original response was: "+reply+". "
@@ -124,7 +157,16 @@ class LenkaReplier(BasicReplier):
         self._context.append(utterance)
 
     def get_context(self, size=3):
-        return ". ".join(utterance for utterance in self._context[-size:] if utterance)
+        context = ""
+        if len(self._context)>size:
+            for utterance in self._context[-(size):]:
+                if utterance is not None:
+                    context += utterance+". "
+        else:
+            for utterance in self._context:
+                if utterance is not None:
+                    context += utterance + ". "
+        return context
 
     def reply_to_question(self, brain_response):
         # Quick check if there is anything to do here
@@ -509,7 +551,7 @@ class LenkaReplier(BasicReplier):
             reply = self.llamalize_reply(reply)
         return reply
 
-    def reply_to_statement_in_context(self, brain_response, persist=False, thought_options=None, end_recursion=5):
+    def reply_to_statement_in_context(self, scenarioContext: LeolaniContext, brain_response, persist=False, thought_options=None, end_recursion=5):
         """
         Phrase a thought based on the brain response
         Parameters
@@ -573,7 +615,7 @@ class LenkaReplier(BasicReplier):
                             score_max = score
                             reply = possible_reply
         if self._llamalize:
-            reply = self.llamalize_reply(reply)
+            reply = self.llamalize_reply_with_context(scenarioContext=scenarioContext, conversationContext=context, reply=reply)
         self._context.append(reply)
         return reply
 
